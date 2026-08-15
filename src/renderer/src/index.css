@@ -216,6 +216,50 @@ textarea.input {
   border-color: var(--accent);
 }
 
+/* 分类 chips 与颜色选择 */
+.category-chip {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+.category-chip.active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+.color-swatch {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.color-swatch.active {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--bg-elevated) inset;
+}
+.color-swatch-custom {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.color-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
 /* ============ 月历 ============ */
 .cell-empty {
   border-right: 1px solid var(--border);
@@ -255,19 +299,26 @@ textarea.input {
   font-weight: 700;
 }
 .add-btn {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  font-size: 12px;
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  font-size: 15px;
   line-height: 1;
   color: var(--text-muted);
-  background: transparent;
+  background: rgba(128, 128, 128, 0.08);
   border: none;
   cursor: pointer;
-  opacity: 0;
+  /* 常显：所有日期格子「＋」稳定可见可点，不依赖 hover 状态 */
+  opacity: 1;
+  pointer-events: auto;
 }
 .day-cell:hover .add-btn {
-  opacity: 1;
+  background: var(--today-bg);
 }
 .add-btn:hover {
   background: var(--today-bg);
@@ -278,10 +329,11 @@ textarea.input {
 .task-card {
   position: relative;
   display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 22px;
-  padding-left: 6px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  min-height: 22px;
+  padding: 1px 4px 1px 6px;
   border-radius: 4px;
   font-size: 12px;
   background: rgba(128, 128, 128, 0.08);
@@ -290,6 +342,12 @@ textarea.input {
 }
 .task-card:active {
   cursor: grabbing;
+}
+.task-card-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
 }
 .task-priority-bar {
   position: absolute;
@@ -330,10 +388,81 @@ textarea.input {
 .task-card.abandoned {
   opacity: 0.45;
 }
+.task-time {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.task-note {
+  padding-left: 24px;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 周/日视图宽裕布局：标题可换行、纵向空间更充裕 */
+.task-card.roomy {
+  min-height: 40px;
+  padding: 4px 6px 5px 8px;
+}
+.task-card.roomy .task-title {
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.3;
+}
+.task-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-left: 18px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.task-category {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.task-category-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
 .repeat-mark {
   font-size: 10px;
   color: var(--text-muted);
   flex-shrink: 0;
+}
+.duration-mark {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.conflict-mark {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--priority-medium);
+}
+.stopwatch {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.task-card.conflict {
+  background: rgba(245, 166, 35, 0.16);
+}
+.timer-btn {
+  min-width: 20px;
+  padding: 0 4px;
+  font-size: 10px;
 }
 .drag-handle {
   cursor: grab;
@@ -416,7 +545,7 @@ textarea.input {
   font-weight: 700;
 }
 .week-column:hover .add-btn {
-  opacity: 1;
+  background: var(--today-bg);
 }
 .week-column-body {
   flex: 1;
@@ -451,5 +580,417 @@ textarea.input {
 }
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* ============ 统计看板 ============ */
+.stats-panel {
+  height: 100%;
+  overflow-y: auto;
+  padding: 20px;
+}
+.stats-card {
+  margin-bottom: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+.stats-card-title {
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.stat-rate {
+  position: relative;
+  margin-bottom: 14px;
+  padding-right: 44px;
+}
+.stat-rate:last-child {
+  margin-bottom: 0;
+}
+.stat-rate-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+.stat-rate-label {
+  color: var(--text-muted);
+}
+.stat-rate-value {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.stat-rate-sub {
+  color: var(--text-muted);
+}
+.stat-rate-pct {
+  position: absolute;
+  right: 0;
+  top: 18px;
+  font-size: 12px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.stat-streak {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.stat-streak-num {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--accent);
+}
+.stat-streak-unit {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.stat-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.stat-counts {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.stat-count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  border-radius: 8px;
+  background: var(--bg);
+}
+.stat-count-num {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+.stat-count-label {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.stat-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.stat-bar-row:last-child {
+  margin-bottom: 0;
+}
+.stat-bar-label {
+  width: 48px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stat-bar-track {
+  flex: 1;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+}
+.stat-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.3s ease;
+}
+.stat-bar-value {
+  width: 28px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============ 日视图 ============ */
+.day-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-elevated);
+}
+.day-view.today {
+  background: var(--today-bg);
+}
+.day-view.drop-target {
+  background: var(--drop-bg);
+}
+.day-view-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.day-view-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+.day-view-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+}
+.day-view-empty {
+  margin-top: 40px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ============ 面板（习惯 / 倒数日） ============ */
+.panel {
+  height: 100%;
+  overflow-y: auto;
+  padding: 20px;
+}
+.panel h2 {
+  margin-bottom: 16px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.panel-empty {
+  padding: 24px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.habit-item,
+.goal-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+.habit-title,
+.goal-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.habit-title.done-text {
+  text-decoration: line-through;
+  color: var(--done-text);
+}
+.habit-streak,
+.goal-days {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* ============ 习惯增强（徽章 / 周圆点 / 归档） ============ */
+.habit-item.archived {
+  opacity: 0.6;
+}
+.habit-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.habit-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.habit-streak-badge {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #b45309;
+  background: rgba(245, 166, 35, 0.16);
+}
+.habit-archived-tag {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+.habit-week {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.habit-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background 0.15s ease;
+}
+.habit-dot.on {
+  background: var(--accent);
+}
+.habit-dot.today {
+  box-shadow: 0 0 0 2px var(--bg-elevated), 0 0 0 3px var(--accent);
+}
+.habit-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.habit-actions .text-btn {
+  white-space: nowrap;
+}
+.habit-archived-section {
+  margin-top: 16px;
+}
+.habit-archived-head {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 16px;
+  text-align: center;
+}
+.empty-state-icon {
+  font-size: 36px;
+}
+.empty-state-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.empty-state-desc {
+  max-width: 360px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+.goal-date {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ============ 倒数日增强（分类/颜色/进度） ============ */
+.goal-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.goal-form-field {
+  width: 100%;
+}
+.goal-form-label {
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.goal-category-row,
+.goal-color-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.goal-item {
+  align-items: flex-start;
+}
+.goal-color-dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: 50%;
+}
+.goal-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.goal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.goal-category {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+.goal-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.goal-progress-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.goal-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.goal-days.overdue {
+  color: var(--priority-high);
+}
+
+/* ============ 冲突 / 校验提示 ============ */
+.conflict-warning {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #8a5a00;
+  background: rgba(245, 166, 35, 0.15);
+  border: 1px solid rgba(245, 166, 35, 0.4);
+}
+.time-error {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--priority-high);
 }
 

@@ -8,8 +8,10 @@ import { store } from './store'
 import { IPC } from '../shared/ipc-channels'
 import type {
   AppConfig,
+  CountdownGoal,
   CreateTaskInput,
   FullData,
+  Habit,
   OverrideAction,
   RepeatOverride,
   Task,
@@ -47,6 +49,10 @@ export function registerDataIpc(): void {
       repeat: input.repeat ?? null,
       inboxOrder: input.date === null ? nextInboxOrder(data) : null,
       tags: [],
+      category: input.category?.trim() ?? '',
+      color: input.color?.trim() ?? '',
+      startTime: input.startTime || undefined,
+      endTime: input.endTime || undefined,
     }
     data.tasks.push(task)
     store.setData(data)
@@ -153,5 +159,69 @@ export function registerDataIpc(): void {
 
   ipcMain.handle(IPC.configSet, (_event, patch: Partial<AppConfig>): AppConfig => {
     return store.setConfig(patch, { debounce: true })
+  })
+
+  ipcMain.handle(
+    IPC.goalCreate,
+    (_event, input: { title: string; targetDate: string; category?: string; color?: string }): CountdownGoal => {
+      const data = store.getData()
+      const goal: CountdownGoal = {
+        id: randomUUID(),
+        title: String(input.title ?? '').trim(),
+        targetDate: String(input.targetDate ?? ''),
+        createdAt: nowIso(),
+        category: typeof input.category === 'string' ? input.category.trim() : '',
+        color: typeof input.color === 'string' ? input.color.trim() : '',
+      }
+      data.goals.push(goal)
+      store.setData(data)
+      return goal
+    },
+  )
+
+  ipcMain.handle(IPC.goalDelete, (_event, id: string): void => {
+    const data = store.getData()
+    data.goals = data.goals.filter((g) => g.id !== id)
+    store.setData(data)
+  })
+
+  ipcMain.handle(IPC.habitCreate, (_event, input: { title: string }): Habit => {
+    const data = store.getData()
+    const habit: Habit = {
+      id: randomUUID(),
+      title: String(input.title ?? '').trim(),
+      checkins: [],
+    }
+    data.habits.push(habit)
+    store.setData(data)
+    return habit
+  })
+
+  ipcMain.handle(IPC.habitDelete, (_event, id: string): void => {
+    const data = store.getData()
+    data.habits = data.habits.filter((h) => h.id !== id)
+    store.setData(data)
+  })
+
+  ipcMain.handle(IPC.habitToggle, (_event, payload: { id: string; date: string }): Habit => {
+    const data = store.getData()
+    const habit = data.habits.find((h) => h.id === payload.id)
+    if (!habit) throw new Error(`习惯不存在：${payload.id}`)
+    if (habit.checkins.includes(payload.date)) {
+      habit.checkins = habit.checkins.filter((d) => d !== payload.date)
+    } else {
+      habit.checkins.push(payload.date)
+    }
+    store.setData(data)
+    return habit
+  })
+
+  ipcMain.handle(IPC.habitSetArchived, (_event, payload: { id: string; archived: boolean }): Habit => {
+    const data = store.getData()
+    const habit = data.habits.find((h) => h.id === payload.id)
+    if (!habit) throw new Error(`习惯不存在：${payload.id}`)
+    habit.archived = payload.archived === true
+    store.setData(data)
+    return habit
   })
 }

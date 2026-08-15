@@ -53,7 +53,7 @@ export function DayCell({ date, isDropTarget }: { date: string; isDropTarget: bo
 
       <div className="mt-1 flex flex-col gap-1 overflow-hidden px-1">
         {visible.map((occ) => (
-          <TaskCard key={`${occ.task.id}-${occ.date}`} occurrence={occ} />
+          <TaskCard key={`${occ.task.id}-${occ.date}`} occurrence={occ} variant="compact" />
         ))}
         {extra > 0 && (
           <div className="px-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>

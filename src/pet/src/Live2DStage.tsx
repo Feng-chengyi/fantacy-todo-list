@@ -9,7 +9,7 @@
  */
 import { useEffect, useRef } from 'react'
 import * as PIXI from 'pixi.js'
-import { Live2DModel } from 'pixi-live2d-display/cubism4'
+import { Live2DModel, config as live2dConfig } from 'pixi-live2d-display/cubism4'
 import { getPetModel } from '../../shared/defaults'
 import type { PetModelId } from '../../shared/types'
 
@@ -19,6 +19,11 @@ import type { PetModelId } from '../../shared/types'
 Live2DModel.registerTicker(PIXI.Ticker)
 PIXI.Application.registerPlugin(PIXI.TickerPlugin)
 PIXI.Renderer.registerPlugin('interaction', PIXI.InteractionManager)
+
+// 默认彻底静音：部分模型（如 Haru）的 TapBody motion 在 model3.json 里带 Sound 字段，
+// pixi-live2d-display 会在播放动作时自动 new Audio 播放 wav。这里全局关闭声音入口，
+// 仅保留视觉动作反应，避免桌宠间隔发出怪叫声。
+live2dConfig.sound = false
 
 const STAGE_WIDTH = 320
 const STAGE_HEIGHT = 420

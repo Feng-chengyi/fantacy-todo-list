@@ -38,8 +38,13 @@ class Store {
   /** 初始化：确保目录与文件存在，读取快照到内存 */
   init(): void {
     if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
-    this.data = this.readJson<FullData>(this.dataPath, DEFAULT_DATA)
-    this.config = this.readJson<AppConfig>(this.configPath, DEFAULT_CONFIG)
+    this.data = this.normalizeData(this.readJson<FullData>(this.dataPath, DEFAULT_DATA))
+    const loadedConfig = this.readJson<AppConfig>(this.configPath, DEFAULT_CONFIG)
+    this.config = {
+      ...DEFAULT_CONFIG,
+      ...loadedConfig,
+      petPosition: { ...DEFAULT_CONFIG.petPosition, ...(loadedConfig.petPosition ?? {}) },
+    }
     // 旧版本配置文件缺少 selectedModel 字段时回填默认值，避免桌宠端读到 undefined
     if (!this.config.selectedModel) this.config.selectedModel = DEFAULT_CONFIG.selectedModel
     if (!existsSync(this.dataPath)) this.writeData()
@@ -55,7 +60,7 @@ class Store {
   }
 
   setData(data: FullData): void {
-    this.data = this.clone(data)
+    this.data = this.normalizeData(data)
     this.writeData()
     // 数据变更通知（气泡提醒等订阅方自行防抖）；store 不感知具体消费方
     this.dataListeners.forEach((cb) => cb())
@@ -99,6 +104,35 @@ class Store {
     } catch (err) {
       console.error('[store] 读取 JSON 失败，回退默认值：', filePath, err)
       return this.clone(fallback)
+    }
+  }
+
+  /**
+   * 数据迁移：为旧任务补全 category / color 字段（缺省为空字符串），
+   * 为旧数据补全 goals / habits 数组，为 habit 补全 archived、为 goal 补全 category/color，
+   * 使渲染进程 / 统计 / 校验层无需再判断 undefined。
+   */
+  private normalizeData(data: FullData): FullData {
+    const tasks = Array.isArray(data.tasks) ? data.tasks : []
+    const goals = Array.isArray(data.goals) ? data.goals : []
+    const habits = Array.isArray(data.habits) ? data.habits : []
+    return {
+      ...data,
+      tasks: tasks.map((t) => ({
+        ...t,
+        category: typeof t.category === 'string' ? t.category : '',
+        color: typeof t.color === 'string' ? t.color : '',
+      })),
+      overrides: Array.isArray(data.overrides) ? data.overrides : [],
+      goals: goals.map((g) => ({
+        ...g,
+        category: typeof g.category === 'string' ? g.category : '',
+        color: typeof g.color === 'string' ? g.color : '',
+      })),
+      habits: habits.map((h) => ({
+        ...h,
+        archived: h.archived === true,
+      })),
     }
   }
 

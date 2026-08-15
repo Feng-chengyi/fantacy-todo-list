@@ -15,6 +15,8 @@ export function SettingsPanel() {
   const petVisible = useConfigStore((s) => s.petVisible)
   const focusMinutes = useConfigStore((s) => s.pomodoroFocusMinutes)
   const breakMinutes = useConfigStore((s) => s.pomodoroBreakMinutes)
+  const showNotesInCalendar = useConfigStore((s) => s.showNotesInCalendar)
+  const noteTruncateLength = useConfigStore((s) => s.noteTruncateLength)
   const update = useConfigStore((s) => s.update)
   const loadTasks = useTaskStore((s) => s.load)
   const loadConfig = useConfigStore((s) => s.load)
@@ -109,6 +111,29 @@ export function SettingsPanel() {
             className="input w-20"
             value={breakMinutes}
             onChange={(e) => void update({ pomodoroBreakMinutes: Math.max(1, Math.floor(Number(e.target.value) || 1)) })}
+          />
+        </label>
+
+        <label className="setting-row">
+          <span>日历显示任务备注</span>
+          <input
+            type="checkbox"
+            checked={showNotesInCalendar}
+            onChange={(e) => void update({ showNotesInCalendar: e.target.checked })}
+          />
+        </label>
+
+        <label className="setting-row">
+          <span>备注截断长度（字符）</span>
+          <input
+            type="number"
+            min={1}
+            max={200}
+            className="input w-20"
+            value={noteTruncateLength}
+            onChange={(e) =>
+              void update({ noteTruncateLength: Math.max(1, Math.min(200, Math.floor(Number(e.target.value) || 1))) })
+            }
           />
         </label>
 

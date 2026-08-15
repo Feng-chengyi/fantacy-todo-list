@@ -8,7 +8,8 @@ import { registerBackupIpc } from './backup'
 import { store } from './store'
 import { createMainWindow, createPetWindow, getMainWindow, setQuitting } from './windows'
 import { createTray } from './tray'
-import { pushTodayBubble } from './today'
+import { pushGoals, pushTodayBubble, pushTodayTodos } from './today'
+import { IPC_MAIN } from '../shared/ipc-channels'
 
 // 单实例锁：避免多开导致数据文件并发写
 const gotLock = app.requestSingleInstanceLock()
@@ -24,20 +25,29 @@ if (!gotLock) {
     const petWin = createPetWindow()
     createTray()
 
-    // 数据变更后推送今日待办气泡（300ms 防抖，避免批量写反复推）
+    // 数据变更后：
+    // 1) 立即通知主窗口（不防抖）——桌宠端完成/跳过任务后，主窗口 taskStore 立即刷新勾选状态；
+    // 2) 推送今日待办气泡 / 浮层 / 倒数日目标（300ms 防抖，避免批量写反复推）。
     let bubbleTimer: NodeJS.Timeout | null = null
     store.onDataChanged(() => {
+      getMainWindow()?.webContents.send(IPC_MAIN.dataChanged)
       if (bubbleTimer) clearTimeout(bubbleTimer)
       bubbleTimer = setTimeout(() => {
         bubbleTimer = null
         pushTodayBubble()
+        pushTodayTodos()
+        pushGoals()
       }, 300)
     })
 
     // 桌宠窗口就绪时补推一次（应用启动即提醒）。
-    // 延迟到渲染进程完成 onBubble 订阅后再推，避免首条气泡因竞态丢失。
+    // 延迟到渲染进程完成订阅后再推，避免首条数据因竞态丢失。
     petWin.once('ready-to-show', () => {
-      setTimeout(pushTodayBubble, 250)
+      setTimeout(() => {
+        pushTodayBubble()
+        pushTodayTodos()
+        pushGoals()
+      }, 250)
     })
 
     app.on('activate', () => {

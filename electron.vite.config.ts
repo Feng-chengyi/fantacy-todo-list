@@ -30,9 +30,8 @@ export default defineConfig({
     publicDir: resolve('src/pet/public'),
     plugins: [react()],
     build: {
-      // 保留 out/renderer 内已复制的 live2d 静态资源，避免每次构建清空目录
-      // （规避受限文件系统对批量删除的拦截；资源复制为幂等覆盖）
-      emptyOutDir: false,
+      // 每次构建清空 out/renderer，避免陈旧产物（旧模型/旧 hash 资源）残留撑大安装包
+      emptyOutDir: true,
       rollupOptions: {
         input: {
           main: resolve('src/renderer/index.html'),

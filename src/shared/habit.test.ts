@@ -1,0 +1,40 @@
+/**
+ * habit 纯函数单测：isCheckedOn / streakOf（含今天未打不断签语义）。
+ */
+import { describe, expect, it } from 'vitest'
+import type { Habit } from './types'
+import { isCheckedOn, streakOf } from './habit'
+
+function habit(checkins: string[]): Habit {
+  return { id: 'h1', title: '喝水', checkins }
+}
+
+describe('isCheckedOn', () => {
+  it('命中 / 未命中', () => {
+    const h = habit(['2025-08-15'])
+    expect(isCheckedOn(h, '2025-08-15')).toBe(true)
+    expect(isCheckedOn(h, '2025-08-14')).toBe(false)
+  })
+})
+
+describe('streakOf', () => {
+  it('今天打卡则从今天连续往前数', () => {
+    const h = habit(['2025-08-15', '2025-08-14', '2025-08-13'])
+    expect(streakOf(h, '2025-08-15')).toBe(3)
+  })
+  it('今天未打但昨天打了，不断签', () => {
+    const h = habit(['2025-08-14', '2025-08-13'])
+    expect(streakOf(h, '2025-08-15')).toBe(2)
+  })
+  it('今天和昨天都没打 = 0', () => {
+    const h = habit(['2025-08-12'])
+    expect(streakOf(h, '2025-08-15')).toBe(0)
+  })
+  it('空习惯 = 0', () => {
+    expect(streakOf(habit([]), '2025-08-15')).toBe(0)
+  })
+  it('中间断签只算连续段', () => {
+    const h = habit(['2025-08-15', '2025-08-14', '2025-08-12', '2025-08-11'])
+    expect(streakOf(h, '2025-08-15')).toBe(2)
+  })
+})

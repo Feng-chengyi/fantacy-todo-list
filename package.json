@@ -1,6 +1,6 @@
 {
   "name": "fantacy-todo-list",
-  "version": "1.0.0",
+  "version": "1.4.0",
   "description": "Fantacy Todo List — 桌面日历待办清单 + Live2D 桌宠陪伴",
   "main": "./out/main/index.js",
   "author": "Fantacy Team",
@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "gen:icon": "node scripts/gen-icon.mjs",
+    "fetch:assets": "node scripts/fetch-live2d-assets.mjs",
     "build:win": "electron-vite build && electron-builder --win"
   },
   "dependencies": {

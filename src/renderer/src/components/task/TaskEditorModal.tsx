@@ -1,22 +1,29 @@
 /**
- * 任务新建/编辑面板：标题 / 日期 / 优先级 / 重复规则 / 备注 / 保存 / 放弃 / 删除。
+ * 任务新建/编辑面板：标题 / 日期 / 优先级 / 重复规则 / 备注 / 起止时间 / 正向计时 / 保存 / 放弃 / 删除。
  */
-import { useEffect, useState } from 'react'
-import type { Priority, RepeatRule } from '../../../../shared/types'
-import { PRIORITY_LABELS } from '../../../../shared/defaults'
+import { useEffect, useMemo, useState } from 'react'
+import type { Priority, RepeatRule, Task } from '../../../../shared/types'
+import { CATEGORY_PRESETS, COLOR_PRESETS, PRIORITY_LABELS } from '../../../../shared/defaults'
 import { todayStr } from '../../../../shared/date'
+import { hasOverlap } from '../../../../shared/conflict'
+import { formatDurationMinutes, timeToMinutes } from '../../../../shared/time'
 import { useTaskStore } from '../../stores/taskStore'
 import { useUiStore } from '../../stores/uiStore'
 import { RepeatRuleEditor } from './RepeatRuleEditor'
+import { Stopwatch } from './Stopwatch'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low']
 
 export function TaskEditorModal() {
   const editor = useUiStore((s) => s.editor)
   const closeEditor = useUiStore((s) => s.closeEditor)
+  const timer = useUiStore((s) => s.timer)
+  const startTimer = useUiStore((s) => s.startTimer)
+  const stopTimer = useUiStore((s) => s.stopTimer)
   const createTask = useTaskStore((s) => s.createTask)
   const updateTask = useTaskStore((s) => s.updateTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
+  const tasks = useTaskStore((s) => s.tasks)
 
   const [title, setTitle] = useState('')
   const [date, setDate] = useState<string>(todayStr())
@@ -24,6 +31,10 @@ export function TaskEditorModal() {
   const [priority, setPriority] = useState<Priority>('medium')
   const [repeat, setRepeat] = useState<RepeatRule | null>(null)
   const [description, setDescription] = useState('')
+  const [category, setCategory] = useState('')
+  const [color, setColor] = useState('')
+  const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
 
   useEffect(() => {
     if (!editor) return
@@ -33,15 +44,31 @@ export function TaskEditorModal() {
     setPriority(editor.task?.priority ?? 'medium')
     setRepeat(editor.task?.repeat ?? null)
     setDescription(editor.task?.description ?? '')
+    setCategory(editor.task?.category ?? '')
+    setColor(editor.task?.color ?? '')
+    setStartTime(editor.task?.startTime ?? '')
+    setEndTime(editor.task?.endTime ?? '')
   }, [editor])
+
+  // 起止时间校验：两者都填时 startTime 必须 < endTime
+  const timeError = !!startTime && !!endTime && timeToMinutes(startTime) >= timeToMinutes(endTime)
+
+  // 时间冲突检测：与「同一天 + 有时间区间」的其它任务做半开区间重叠判断
+  const conflicts = useMemo<Task[]>(() => {
+    if (inInbox || !date || !startTime || !endTime) return []
+    const selfId = editor?.task?.id
+    const candidate = { id: selfId ?? '__new__', date, startTime, endTime }
+    return tasks.filter((t) => t.id !== selfId && hasOverlap(candidate, t))
+  }, [tasks, inInbox, date, startTime, endTime, editor])
 
   if (!editor) return null
 
   const isEdit = editor.task != null
 
   const save = async (): Promise<void> => {
-    if (!title.trim()) return
+    if (!title.trim() || timeError) return
     const finalDate = inInbox ? null : date
+    const timePatch = { startTime: startTime || undefined, endTime: endTime || undefined }
     if (isEdit) {
       await updateTask(editor.task!.id, {
         title: title.trim(),
@@ -49,9 +76,21 @@ export function TaskEditorModal() {
         priority,
         repeat,
         description,
+        category: category.trim(),
+        color: color.trim(),
+        ...timePatch,
       })
     } else {
-      await createTask({ title: title.trim(), date: finalDate, priority, repeat, description })
+      await createTask({
+        title: title.trim(),
+        date: finalDate,
+        priority,
+        repeat,
+        description,
+        category: category.trim(),
+        color: color.trim(),
+        ...timePatch,
+      })
     }
     closeEditor()
   }
@@ -106,13 +145,122 @@ export function TaskEditorModal() {
         </div>
 
         {!inInbox && (
-          <div className="mb-3">
-            <input type="date" className="input w-full" value={date} onChange={(e) => setDate(e.target.value)} />
+          <>
+            <div className="mb-3">
+              <input type="date" className="input w-full" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+
+            <div className="mb-3 flex items-center gap-2">
+              <label className="flex items-center gap-2 text-sm">
+                <span style={{ color: 'var(--text-muted)' }}>开始</span>
+                <input type="time" className="input" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <span style={{ color: 'var(--text-muted)' }}>结束</span>
+                <input type="time" className="input" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+              </label>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                留空 = 全天
+              </span>
+            </div>
+
+            {timeError && <div className="time-error">开始时间需早于结束时间</div>}
+
+            {conflicts.length > 0 && (
+              <div className="conflict-warning">
+                ⚠ 时间冲突：{conflicts.map((t) => `『${t.title}』`).join('、')}
+              </div>
+            )}
+          </>
+        )}
+
+        {isEdit && (
+          <div className="mb-3 flex items-center gap-2">
+            <Stopwatch taskId={editor.task!.id} />
+            {timer?.taskId === editor.task!.id ? (
+              <button className="ghost-btn" onClick={() => stopTimer()}>
+                停止计时
+              </button>
+            ) : (
+              <button className="ghost-btn" onClick={() => startTimer(editor.task!.id)}>
+                开始计时
+              </button>
+            )}
+            {editor.task!.durationSec != null && (
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                用时 {formatDurationMinutes(editor.task!.durationSec)}
+              </span>
+            )}
           </div>
         )}
 
         <div className="mb-3">
           <RepeatRuleEditor value={repeat} onChange={setRepeat} />
+        </div>
+
+        <div className="mb-3">
+          <div className="mb-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+            分类
+          </div>
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            {CATEGORY_PRESETS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={`category-chip ${category === c ? 'active' : ''}`}
+                onClick={() => setCategory(category === c ? '' : c)}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+          <input
+            className="input w-full"
+            placeholder="自定义分类（可选）"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          />
+        </div>
+
+        <div className="mb-3">
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              颜色
+            </span>
+            {color && (
+              <button
+                type="button"
+                className="mini-btn"
+                onClick={() => setColor('')}
+              >
+                使用优先级色
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {COLOR_PRESETS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={`color-swatch ${color === c ? 'active' : ''}`}
+                style={{ background: c }}
+                title={c}
+                onClick={() => setColor(color === c ? '' : c)}
+              />
+            ))}
+            <label
+              className="color-swatch color-swatch-custom"
+              title="自定义颜色"
+              style={{ background: color || 'conic-gradient(#e5484d,#f5a623,#22c55e,#3b82f6,#8b5cf6,#e5484d)' }}
+            >
+              <input
+                type="color"
+                className="color-input"
+                value={/^#[0-9a-fA-F]{6}$/.test(color) ? color : '#6c5ce7'}
+                onChange={(e) => setColor(e.target.value)}
+              />
+            </label>
+          </div>
         </div>
 
         <textarea
@@ -137,7 +285,11 @@ export function TaskEditorModal() {
           <button className="ghost-btn" onClick={closeEditor}>
             取消
           </button>
-          <button className="primary-btn" disabled={!title.trim()} onClick={() => void save()}>
+          <button
+            className="primary-btn"
+            disabled={!title.trim() || timeError}
+            onClick={() => void save()}
+          >
             保存
           </button>
         </div>

@@ -29,6 +29,8 @@ function validBundle(): BackupBundle {
         },
       ],
       overrides: [],
+      goals: [],
+      habits: [],
     },
     config: {
       petVisible: true,
@@ -40,6 +42,8 @@ function validBundle(): BackupBundle {
       theme: 'system',
       pomodoroFocusMinutes: 25,
       pomodoroBreakMinutes: 5,
+      showNotesInCalendar: true,
+      noteTruncateLength: 30,
     },
   }
 }
@@ -101,6 +105,14 @@ describe('validateBackupBundle', () => {
     const b = validBundle()
     ;(b.config as unknown as Record<string, unknown>).selectedModel = 'miku'
     expect(validateBackupBundle(b).ok).toBe(false)
+  })
+
+  it('新增角色 mao/wanko/rice 通过 selectedModel 校验', () => {
+    for (const id of ['mao', 'wanko', 'rice']) {
+      const b = validBundle()
+      b.config.selectedModel = id as never
+      expect(validateBackupBundle(b).ok).toBe(true)
+    }
   })
 
   // ===== QA 补充边界用例 =====
@@ -191,6 +203,23 @@ describe('validateBackupBundle', () => {
     expect(validateBackupBundle(b).ok).toBe(false)
   })
 
+  it('旧任务缺 category/color 可兼容（通过）', () => {
+    const b = validBundle()
+    expect(validateBackupBundle(b).ok).toBe(true)
+  })
+
+  it('category 类型错失败', () => {
+    const b = validBundle()
+    ;(b.data.tasks[0] as unknown as Record<string, unknown>).category = 123
+    expect(validateBackupBundle(b).ok).toBe(false)
+  })
+
+  it('color 类型错失败', () => {
+    const b = validBundle()
+    ;(b.data.tasks[0] as unknown as Record<string, unknown>).color = ['#fff']
+    expect(validateBackupBundle(b).ok).toBe(false)
+  })
+
   it('backupVersion 值非当前版本失败', () => {
     const b = validBundle()
     ;(b as unknown as Record<string, unknown>).backupVersion = 2
@@ -200,6 +229,121 @@ describe('validateBackupBundle', () => {
   it('data.version 值非当前版本失败', () => {
     const b = validBundle()
     ;(b.data as unknown as Record<string, unknown>).version = 99
+    expect(validateBackupBundle(b).ok).toBe(false)
+  })
+})
+
+describe('第四批新增字段兼容与校验', () => {
+  it('旧备份缺 goals/habits 可兼容（通过）', () => {
+    const b = validBundle()
+    delete (b.data as unknown as Record<string, unknown>).goals
+    delete (b.data as unknown as Record<string, unknown>).habits
+    expect(validateBackupBundle(b).ok).toBe(true)
+  })
+
+  it('goals/habits 合法通过', () => {
+    const b = validBundle()
+    b.data.goals = [{ id: 'g1', title: '考试', targetDate: '2025-12-01', createdAt: '2025-08-15T00:00:00.000Z' }]
+    b.data.habits = [{ id: 'h1', title: '喝水', checkins: ['2025-08-15'] }]
+    const res = validateBackupBundle(b)
+    expect(res.ok).toBe(true)
+    if (res.ok) {
+      expect(res.data.goals.length).toBe(1)
+      expect(res.data.habits.length).toBe(1)
+    }
+  })
+
+  it('goals 非数组失败', () => {
+    const b = validBundle()
+    ;(b.data as unknown as Record<string, unknown>).goals = 'not-array'
+    expect(validateBackupBundle(b).ok).toBe(false)
+  })
+
+  it('habits.checkins 非数组失败', () => {
+    const b = validBundle()
+    b.data.habits = [{ id: 'h1', title: '喝水', checkins: '2025-08-15' }] as never
+    expect(validateBackupBundle(b).ok).toBe(false)
+  })
+
+  it('task.startTime/durationSec 类型错失败', () => {
+    const b = validBundle()
+    ;(b.data.tasks[0] as unknown as Record<string, unknown>).startTime = 900
+    expect(validateBackupBundle(b).ok).toBe(false)
+    const b2 = validBundle()
+    ;(b2.data.tasks[0] as unknown as Record<string, unknown>).durationSec = '60'
+    expect(validateBackupBundle(b2).ok).toBe(false)
+  })
+
+  it('task.startTime/endTime/durationSec 合法通过', () => {
+    const b = validBundle()
+    ;(b.data.tasks[0] as unknown as Record<string, unknown>).startTime = '09:00'
+    ;(b.data.tasks[0] as unknown as Record<string, unknown>).endTime = '10:00'
+    ;(b.data.tasks[0] as unknown as Record<string, unknown>).durationSec = 3600
+    expect(validateBackupBundle(b).ok).toBe(true)
+  })
+
+  it('config 新增备注字段缺省通过 / 类型错失败', () => {
+    const b = validBundle()
+    delete (b.config as unknown as Record<string, unknown>).showNotesInCalendar
+    delete (b.config as unknown as Record<string, unknown>).noteTruncateLength
+    expect(validateBackupBundle(b).ok).toBe(true)
+
+    const b2 = validBundle()
+    ;(b2.config as unknown as Record<string, unknown>).noteTruncateLength = '30'
+    expect(validateBackupBundle(b2).ok).toBe(false)
+  })
+})
+
+describe('第五批新增字段兼容与校验', () => {
+  it('goal.category/color 合法通过并回填默认', () => {
+    const b = validBundle()
+    b.data.goals = [
+      { id: 'g1', title: '考试', targetDate: '2025-12-01', createdAt: '2025-08-15T00:00:00.000Z', category: '学习', color: '#3b82f6' },
+    ]
+    const res = validateBackupBundle(b)
+    expect(res.ok).toBe(true)
+    if (res.ok) {
+      expect(res.data.goals[0].category).toBe('学习')
+      expect(res.data.goals[0].color).toBe('#3b82f6')
+    }
+  })
+
+  it('goal.category/color 缺省兼容（回填空字符串）', () => {
+    const b = validBundle()
+    b.data.goals = [{ id: 'g1', title: '考试', targetDate: '2025-12-01', createdAt: '2025-08-15T00:00:00.000Z' }]
+    const res = validateBackupBundle(b)
+    expect(res.ok).toBe(true)
+    if (res.ok) {
+      expect(res.data.goals[0].category).toBe('')
+      expect(res.data.goals[0].color).toBe('')
+    }
+  })
+
+  it('goal.category 类型错失败', () => {
+    const b = validBundle()
+    b.data.goals = [{ id: 'g1', title: '考试', targetDate: '2025-12-01', createdAt: '2025-08-15T00:00:00.000Z', category: 123 }] as never
+    expect(validateBackupBundle(b).ok).toBe(false)
+  })
+
+  it('habit.archived 合法通过', () => {
+    const b = validBundle()
+    b.data.habits = [{ id: 'h1', title: '喝水', checkins: [], archived: true }]
+    const res = validateBackupBundle(b)
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.data.habits[0].archived).toBe(true)
+  })
+
+  it('habit.archived 缺省兼容（回填 false）', () => {
+    const b = validBundle()
+    b.data.habits = [{ id: 'h1', title: '喝水', checkins: [] }]
+    const res = validateBackupBundle(b)
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.data.habits[0].archived).toBe(false)
+  })
+
+  it('habit.archived 类型错失败', () => {
+    const b = validBundle()
+    b.data.habits = [{ id: 'h1', title: '喝水', checkins: [], archived: 'yes' }] as never
     expect(validateBackupBundle(b).ok).toBe(false)
   })
 })

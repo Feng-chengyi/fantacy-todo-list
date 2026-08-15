@@ -1,11 +1,14 @@
 /**
- * 桌宠 / 窗口类 IPC handler：气泡转发、显隐、移窗、鼠标穿透、聚焦、退出。
+ * 桌宠 / 窗口类 IPC handler：气泡转发、显隐、移窗、鼠标穿透、聚焦、打开面板、
+ * 完成今日待办、退出。
  */
 import { app, ipcMain } from 'electron'
+import { randomUUID } from 'crypto'
 import { IPC, IPC_MAIN } from '../shared/ipc-channels'
+import { todayStr } from '../shared/date'
 import { getMainWindow, getPetWindow, setPetVisible } from './windows'
 import { store } from './store'
-import type { PomodoroState } from '../shared/types'
+import type { MainPanel, PomodoroState } from '../shared/types'
 
 export function registerPetIpc(): void {
   ipcMain.handle(IPC.petShowBubble, (_event, text: string): void => {
@@ -41,6 +44,33 @@ export function registerPetIpc(): void {
     if (win.isMinimized()) win.restore()
     win.show()
     win.focus()
+  })
+
+  ipcMain.handle(IPC.windowOpenPanel, (_event, panel: MainPanel): void => {
+    const win = getMainWindow()
+    if (!win) return
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+    win.webContents.send(IPC_MAIN.openPanel, panel)
+  })
+
+  ipcMain.handle(IPC.petCompleteTask, (_event, taskId: string): void => {
+    const data = store.getData()
+    const task = data.tasks.find((t) => t.id === taskId)
+    if (!task) return
+    const today = todayStr()
+    if (task.repeat) {
+      // 重复任务：单日完成走 override（与主窗口勾选一致）
+      const existing = data.overrides.find((o) => o.taskId === taskId && o.occurrenceDate === today)
+      if (existing) existing.action = 'done'
+      else data.overrides.push({ id: randomUUID(), taskId, occurrenceDate: today, action: 'done' })
+    } else {
+      task.status = 'done'
+      task.completedAt = new Date().toISOString()
+      task.updatedAt = new Date().toISOString()
+    }
+    store.setData(data)
   })
 
   ipcMain.handle(IPC.windowMinimize, (): void => {

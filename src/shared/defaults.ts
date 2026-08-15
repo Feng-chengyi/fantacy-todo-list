@@ -1,7 +1,7 @@
 /**
  * 默认值与枚举映射 —— 数据文件首次初始化时写入的默认内容。
  */
-import type { AppConfig, FullData, PetModelId, PetModelInfo, Priority } from './types'
+import type { AppConfig, FullData, PetModelId, PetModelInfo, Priority, Task } from './types'
 
 /** 数据格式版本号（data.json / 备份文件共用），导入时校验兼容性 */
 export const DATA_VERSION = 1
@@ -16,6 +16,8 @@ export const DEFAULT_CONFIG: AppConfig = {
   theme: 'system',
   pomodoroFocusMinutes: 25,
   pomodoroBreakMinutes: 5,
+  showNotesInCalendar: true,
+  noteTruncateLength: 30,
 }
 
 /**
@@ -26,6 +28,9 @@ export const PET_MODELS: PetModelInfo[] = [
   { id: 'haru', name: 'Haru 春', path: 'live2d/models/haru/Haru.model3.json' },
   { id: 'hiyori', name: 'Hiyori 日和', path: 'live2d/models/hiyori/Hiyori.model3.json' },
   { id: 'natori', name: 'Natori 名取', path: 'live2d/models/natori/Natori.model3.json' },
+  { id: 'mao', name: 'Mao 猫', path: 'live2d/models/mao/Mao.model3.json' },
+  { id: 'wanko', name: 'Wanko 狗', path: 'live2d/models/wanko/Wanko.model3.json' },
+  { id: 'rice', name: 'Rice 鼠', path: 'live2d/models/rice/Rice.model3.json' },
 ]
 
 /** 依据 ID 查模型清单项；未知 ID 回退到第一个（haru） */
@@ -42,6 +47,8 @@ export const DEFAULT_DATA: FullData = {
   version: DATA_VERSION,
   tasks: [],
   overrides: [],
+  goals: [],
+  habits: [],
 }
 
 /** 优先级排序权重（越小越靠前） */
@@ -59,3 +66,27 @@ export const PRIORITY_LABELS: Record<Priority, string> = {
 }
 
 export const ALL_PRIORITIES: Priority[] = ['high', 'medium', 'low']
+
+/** 任务预设分类（chips 快捷输入，仍可自由输入自定义分类） */
+export const CATEGORY_PRESETS: string[] = ['工作', '生活', '学习', '其他']
+
+/** 任务自定义颜色预设色板（hex） */
+export const COLOR_PRESETS: string[] = [
+  '#e5484d', // 红（高优先级）
+  '#f5a623', // 琥珀（中优先级）
+  '#3b82f6', // 蓝
+  '#22c55e', // 绿
+  '#8b5cf6', // 紫
+  '#ec4899', // 粉
+  '#14b8a6', // 青
+  '#64748b', // 灰
+]
+
+/**
+ * 解析任务展示颜色：有自定义 color 用之，否则回退优先级色 CSS 变量。
+ * 纯函数，供日历 / 收集箱 / 周视图复用，保证颜色链路一致。
+ */
+export function taskColor(task: Pick<Task, 'color' | 'priority'>): string {
+  const color = task.color && task.color.trim()
+  return color ? color : `var(--priority-${task.priority})`
+}

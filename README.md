@@ -47,7 +47,10 @@ Electron · React 18 · Vite · TypeScript · Tailwind CSS · Zustand · @dnd-ki
 # 1. 安装依赖（已配置国内镜像加速）
 npm install
 
-# 2. 开发模式运行（启动日历主窗口 + Live2D 桌宠窗口）
+# 2. 拉取 Live2D 桌宠资源（Cubism Core + 示例模型，版权归 Live2D Inc.，不入库）
+npm run fetch:assets
+
+# 3. 开发模式运行（启动日历主窗口 + Live2D 桌宠窗口）
 npm run dev
 ```
 
@@ -81,14 +84,16 @@ fantacy-todo-list/
 │   ├── preload/               # 预加载脚本（contextBridge 白名单）
 │   ├── renderer/              # 主窗口（日历待办 UI）
 │   └── pet/                   # 桌宠窗口（Live2D 渲染 + 交互）
-│       └── public/live2d/     # Haru 模型 + Cubism Core（本地打包，离线）
+│       └── public/live2d/     # Live2D 资源（经 fetch:assets 拉取，不入库）
+├── scripts/
+│   └── fetch-live2d-assets.mjs # 拉取 Live2D 资源脚本
 └── docs/                      # 需求与设计文档
 ```
 
 ## ⚖️ 开源许可与第三方声明
 
 - **源代码**：以 [MIT 许可](./LICENSE) 发布。
-- **Live2D 资源**：桌宠使用的 Live2D 官方示例模型「Haru（春）」及 Cubism Core 为 © Live2D Inc. 专有资源，**不适用 MIT 许可**，详见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
+- **Live2D 资源**：桌宠使用的 Live2D Cubism Core 与官方示例模型（Haru / Hiyori / Natori / Mao / Wanko / Rice）为 © Live2D Inc. 专有资源，**不适用 MIT 许可、不随本仓库分发**。请运行 `npm run fetch:assets` 从 Live2D 官方源拉取到本地，详见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
 
 ## 📝 设计文档
 

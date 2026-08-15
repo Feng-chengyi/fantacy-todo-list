@@ -6,6 +6,7 @@ import { getDay } from 'date-fns'
 import { DndContext, PointerSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
 import { parseLocal, todayStr, weekDates } from '../../../../shared/date'
 import { dayDropId, useDragDate } from '../../hooks/useDragDate'
+import { useConflictsForDate } from '../../hooks/useConflicts'
 import { useOccurrencesForDate } from '../../hooks/useOccurrences'
 import { useConfigStore } from '../../stores/configStore'
 import { useUiStore } from '../../stores/uiStore'
@@ -21,7 +22,8 @@ interface WeekColumnProps {
 }
 
 function WeekColumn({ date, isToday, isDropTarget, onAdd }: WeekColumnProps) {
-  const occurrences = useOccurrencesForDate(date)
+  const occurrences = useOccurrencesForDate(date, 'time')
+  const conflictIds = useConflictsForDate(date)
   const setSelectedDate = useUiStore((s) => s.setSelectedDate)
   const { setNodeRef, isOver } = useDroppable({ id: dayDropId(date) })
 
@@ -51,7 +53,12 @@ function WeekColumn({ date, isToday, isDropTarget, onAdd }: WeekColumnProps) {
       </div>
       <div className="week-column-body">
         {occurrences.map((occ) => (
-          <TaskCard key={`${occ.task.id}-${occ.date}`} occurrence={occ} />
+          <TaskCard
+            key={`${occ.task.id}-${occ.date}`}
+            occurrence={occ}
+            conflict={conflictIds.has(occ.task.id)}
+            variant="roomy"
+          />
         ))}
       </div>
     </div>

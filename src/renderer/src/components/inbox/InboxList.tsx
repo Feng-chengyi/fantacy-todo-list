@@ -19,6 +19,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { useMemo } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
 import type { Task } from '../../../../shared/types'
+import { taskColor } from '../../../../shared/defaults'
 import { fireConfetti } from '../../lib/confetti'
 import { useConfigStore } from '../../stores/configStore'
 import { useTaskStore } from '../../stores/taskStore'
@@ -56,7 +57,7 @@ function InboxItem({ task }: { task: Task }) {
       {...listeners}
       className={`task-card ${done ? 'done' : ''} ${abandoned ? 'abandoned' : ''}`}
     >
-      <span className="task-priority-bar" style={{ background: `var(--priority-${task.priority})` }} />
+      <span className="task-priority-bar" style={{ background: taskColor(task) }} />
       <span className="drag-handle" title="拖拽排序">
         ⠿
       </span>

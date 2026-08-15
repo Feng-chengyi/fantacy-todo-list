@@ -3,6 +3,7 @@
  */
 import { useMemo } from 'react'
 import { PRIORITY_ORDER } from '../../../shared/defaults'
+import { timeToMinutes } from '../../../shared/time'
 import type { Occurrence, Priority, TaskStatus } from '../../../shared/types'
 import { endOfMonthStr, startOfMonthStr } from '../../../shared/date'
 import {
@@ -11,6 +12,8 @@ import {
   listOccurrencesInRange,
 } from '../../../shared/repeatEngine'
 import { useTaskStore } from '../stores/taskStore'
+
+export type OccurrenceSort = 'priority' | 'time'
 
 function rank(priority: Priority): number {
   return PRIORITY_ORDER[priority]
@@ -22,8 +25,25 @@ function byPriorityThenCreated(a: Occurrence, b: Occurrence): number {
   return a.task.createdAt.localeCompare(b.task.createdAt)
 }
 
+/** 有时间段的在前并按开始时间升序，无时间段的按优先级/创建时间排后 */
+function byTimeThenPriority(a: Occurrence, b: Occurrence): number {
+  const aTime = a.task.startTime
+  const bTime = b.task.startTime
+  if (aTime && bTime) {
+    const diff = timeToMinutes(aTime) - timeToMinutes(bTime)
+    if (diff !== 0) return diff
+    return byPriorityThenCreated(a, b)
+  }
+  if (aTime) return -1
+  if (bTime) return 1
+  return byPriorityThenCreated(a, b)
+}
+
 /** 某一天的所有任务实例（含重复展开），skipped 已过滤 */
-export function useOccurrencesForDate(date: string): Occurrence[] {
+export function useOccurrencesForDate(
+  date: string,
+  sort: OccurrenceSort = 'priority',
+): Occurrence[] {
   const tasks = useTaskStore((s) => s.tasks)
   const overrides = useTaskStore((s) => s.overrides)
 
@@ -41,9 +61,9 @@ export function useOccurrencesForDate(date: string): Occurrence[] {
         result.push({ task, date, status: task.status })
       }
     }
-    result.sort(byPriorityThenCreated)
+    result.sort(sort === 'time' ? byTimeThenPriority : byPriorityThenCreated)
     return result
-  }, [tasks, overrides, date])
+  }, [tasks, overrides, date, sort])
 }
 
 /** 整个月按日期分组的实例映射 */

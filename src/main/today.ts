@@ -5,8 +5,9 @@
 import { todayStr } from '../shared/date'
 import { getOccurrenceStatus, isOccurrenceOnDate } from '../shared/repeatEngine'
 import { PRIORITY_ORDER } from '../shared/defaults'
+import { daysUntil, sortGoalsByDays } from '../shared/countdown'
 import { IPC_MAIN } from '../shared/ipc-channels'
-import type { TodayTodo } from '../shared/types'
+import type { PetGoal, TodayTodo } from '../shared/types'
 import { store } from './store'
 import { getPetWindow } from './windows'
 
@@ -55,4 +56,37 @@ export function pushTodayBubble(): void {
   text += `\n${lines}${todos.length > 3 ? '\n…' : ''}`
 
   win.webContents.send(IPC_MAIN.petBubble, text)
+}
+
+/**
+ * 向桌宠窗口推送结构化「今日待办」列表（悬浮浮层数据源）。
+ * 复用 computeTodayTodos 结果（含重复任务当日实例展开 + done/skipped 覆盖过滤）。
+ * 今日无待办时推送空数组，供浮层据此隐藏「今日待办」标题。
+ */
+export function pushTodayTodos(): void {
+  const win = getPetWindow()
+  if (!win) return
+  win.webContents.send(IPC_MAIN.petTodayTodos, computeTodayTodos())
+}
+
+/** 计算桌宠浮层展示的倒数日目标（剩余天数 + 按剩余天数排序） */
+export function computePetGoals(): PetGoal[] {
+  const data = store.getData()
+  const today = todayStr()
+  const goals: PetGoal[] = data.goals.map((g) => ({
+    id: g.id,
+    title: g.title,
+    targetDate: g.targetDate,
+    daysLeft: daysUntil(g.targetDate, today),
+    category: g.category ?? '',
+    color: g.color ?? '',
+  }))
+  return sortGoalsByDays(goals, today)
+}
+
+/** 向桌宠窗口推送倒数日目标（悬浮浮层数据源） */
+export function pushGoals(): void {
+  const win = getPetWindow()
+  if (!win) return
+  win.webContents.send(IPC_MAIN.petGoals, computePetGoals())
 }

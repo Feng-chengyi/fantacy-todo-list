@@ -16,6 +16,12 @@ export const IPC = {
   taskReorderInbox: 'task:reorderInbox',
   overrideSet: 'override:set',
   overrideClear: 'override:clear',
+  goalCreate: 'goal:create',
+  goalDelete: 'goal:delete',
+  habitCreate: 'habit:create',
+  habitDelete: 'habit:delete',
+  habitToggle: 'habit:toggle',
+  habitSetArchived: 'habit:setArchived',
   configGet: 'config:get',
   configSet: 'config:set',
   dataExport: 'data:export',
@@ -26,7 +32,9 @@ export const IPC = {
   petMoveWindow: 'pet:move-window',
   petSetIgnoreMouse: 'pet:set-ignore-mouse',
   petNotifyPomodoro: 'pet:notify-pomodoro',
+  petCompleteTask: 'pet:complete-task',
   windowFocusMain: 'window:focus-main',
+  windowOpenPanel: 'window:open-panel',
   windowMinimize: 'window:minimize',
   windowClose: 'window:close',
 } as const
@@ -36,6 +44,11 @@ export const IPC_MAIN = {
   petBubble: 'pet:bubble',
   petVisibility: 'pet:visibility',
   petPomodoro: 'pet:pomodoro',
+  petTodayTodos: 'pet:today-todos',
+  petGoals: 'pet:goals',
+  openPanel: 'window:open-panel-request',
+  /** 数据已变更（主窗口订阅后重载 task/habit/goal store） */
+  dataChanged: 'data:changed',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

@@ -17,23 +17,28 @@ export function TopBar() {
   const setView = useUiStore((s) => s.setView)
   const prevWeek = useUiStore((s) => s.prevWeek)
   const nextWeek = useUiStore((s) => s.nextWeek)
+  const prevDay = useUiStore((s) => s.prevDay)
+  const nextDay = useUiStore((s) => s.nextDay)
   const selectedDate = useUiStore((s) => s.selectedDate)
   const setShowSettings = useUiStore((s) => s.setShowSettings)
   const setShowPomodoro = useUiStore((s) => s.setShowPomodoro)
   const weekStart = useConfigStore((s) => s.weekStart)
 
   const isWeek = view === 'week'
+  const isDay = view === 'day'
 
   let label: string
   if (isWeek) {
     const days = weekDates(selectedDate ?? todayStr(), weekStart)
     label = `${format(parseLocal(days[0]), 'M 月 d 日')} – ${format(parseLocal(days[6]), 'M 月 d 日')}`
+  } else if (isDay) {
+    label = format(parseLocal(selectedDate ?? todayStr()), 'yyyy 年 M 月 d 日')
   } else {
     label = format(new Date(currentYear, currentMonth, 1), 'yyyy 年 M 月')
   }
 
-  const onPrev = isWeek ? prevWeek : prevMonth
-  const onNext = isWeek ? nextWeek : nextMonth
+  const onPrev = isWeek ? prevWeek : isDay ? prevDay : prevMonth
+  const onNext = isWeek ? nextWeek : isDay ? nextDay : nextMonth
 
   return (
     <header
@@ -45,11 +50,14 @@ export function TopBar() {
       </h1>
 
       <div className="view-tabs">
-        <button className={!isWeek ? 'active' : ''} onClick={() => setView('month')}>
+        <button className={!isWeek && !isDay ? 'active' : ''} onClick={() => setView('month')}>
           月
         </button>
         <button className={isWeek ? 'active' : ''} onClick={() => setView('week')}>
           周
+        </button>
+        <button className={isDay ? 'active' : ''} onClick={() => setView('day')}>
+          日
         </button>
       </div>
 

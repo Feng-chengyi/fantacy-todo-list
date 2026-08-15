@@ -68,6 +68,8 @@ export function useDragDate(): DragDateHandlers {
         priority: task.priority,
         date: targetDate,
         repeat: null,
+        category: task.category ?? '',
+        color: task.color ?? '',
       })
       return
     }

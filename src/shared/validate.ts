@@ -44,6 +44,13 @@ function validateTask(t: unknown, index: number): string | null {
     return `tasks[${index}].inboxOrder 类型错误`
   }
   if (t.tags !== undefined && !Array.isArray(t.tags)) return `tasks[${index}].tags 类型错误`
+  // 新增可选字段（分类/颜色）：旧数据可缺省，存在则必须为字符串
+  if (t.category !== undefined && !isString(t.category)) return `tasks[${index}].category 类型错误`
+  if (t.color !== undefined && !isString(t.color)) return `tasks[${index}].color 类型错误`
+  // 新增可选字段（时间/用时）：旧数据可缺省
+  if (t.startTime !== undefined && !isString(t.startTime)) return `tasks[${index}].startTime 类型错误`
+  if (t.endTime !== undefined && !isString(t.endTime)) return `tasks[${index}].endTime 类型错误`
+  if (t.durationSec !== undefined && typeof t.durationSec !== 'number') return `tasks[${index}].durationSec 类型错误`
 
   // 重复规则结构
   if (t.repeat !== undefined && t.repeat !== null) {
@@ -101,6 +108,34 @@ export function validateBackupBundle(json: unknown): ValidateResult {
     if (!ACTIONS.includes(o.action as string)) return { ok: false, error: `overrides[${i}].action 非法` }
   }
 
+  // 新增字段 goals / habits：旧备份可缺省（由 store 回填），存在则必须为数组且元素合法
+  if (json.data.goals !== undefined && !Array.isArray(json.data.goals)) {
+    return { ok: false, error: 'data.goals 不是数组' }
+  }
+  if (json.data.habits !== undefined && !Array.isArray(json.data.habits)) {
+    return { ok: false, error: 'data.habits 不是数组' }
+  }
+  const goals: unknown[] = Array.isArray(json.data.goals) ? json.data.goals : []
+  const habits: unknown[] = Array.isArray(json.data.habits) ? json.data.habits : []
+  for (const [i, g] of goals.entries()) {
+    if (!isRecord(g)) return { ok: false, error: `goals[${i}] 不是对象` }
+    if (!isString(g.id)) return { ok: false, error: `goals[${i}].id 类型错误` }
+    if (!isString(g.title)) return { ok: false, error: `goals[${i}].title 类型错误` }
+    if (!isString(g.targetDate)) return { ok: false, error: `goals[${i}].targetDate 类型错误` }
+    if (!isString(g.createdAt)) return { ok: false, error: `goals[${i}].createdAt 类型错误` }
+    // 新增可选字段：旧备份可缺省，存在则必须类型正确
+    if (g.category !== undefined && !isString(g.category)) return { ok: false, error: `goals[${i}].category 类型错误` }
+    if (g.color !== undefined && !isString(g.color)) return { ok: false, error: `goals[${i}].color 类型错误` }
+  }
+  for (const [i, h] of habits.entries()) {
+    if (!isRecord(h)) return { ok: false, error: `habits[${i}] 不是对象` }
+    if (!isString(h.id)) return { ok: false, error: `habits[${i}].id 类型错误` }
+    if (!isString(h.title)) return { ok: false, error: `habits[${i}].title 类型错误` }
+    if (!Array.isArray(h.checkins)) return { ok: false, error: `habits[${i}].checkins 不是数组` }
+    // 新增可选字段：旧备份可缺省，存在则必须为布尔
+    if (h.archived !== undefined && typeof h.archived !== 'boolean') return { ok: false, error: `habits[${i}].archived 类型错误` }
+  }
+
   if (!isRecord(json.config)) return { ok: false, error: 'config 缺失或类型错误' }
   const cfg = json.config
   if (typeof cfg.petVisible !== 'boolean') return { ok: false, error: 'config.petVisible 类型错误' }
@@ -122,10 +157,32 @@ export function validateBackupBundle(json: unknown): ValidateResult {
   if (cfg.selectedModel !== undefined && !isPetModelId(cfg.selectedModel)) {
     return { ok: false, error: 'config.selectedModel 非法' }
   }
+  // 新增配置字段：旧备份可缺省，存在则必须类型正确
+  if (cfg.showNotesInCalendar !== undefined && typeof cfg.showNotesInCalendar !== 'boolean') {
+    return { ok: false, error: 'config.showNotesInCalendar 类型错误' }
+  }
+  if (cfg.noteTruncateLength !== undefined && typeof cfg.noteTruncateLength !== 'number') {
+    return { ok: false, error: 'config.noteTruncateLength 类型错误' }
+  }
 
   return {
     ok: true,
-    data: json.data as unknown as FullData,
-    config: json.config as unknown as AppConfig,
+    data: {
+      ...json.data,
+      goals: (Array.isArray(json.data.goals) ? json.data.goals : []).map((g) => ({
+        ...(g as Record<string, unknown>),
+        category: typeof (g as Record<string, unknown>).category === 'string' ? (g as Record<string, unknown>).category : '',
+        color: typeof (g as Record<string, unknown>).color === 'string' ? (g as Record<string, unknown>).color : '',
+      })),
+      habits: (Array.isArray(json.data.habits) ? json.data.habits : []).map((h) => ({
+        ...(h as Record<string, unknown>),
+        archived: (h as Record<string, unknown>).archived === true,
+      })),
+    } as unknown as FullData,
+    config: {
+      ...json.config,
+      showNotesInCalendar: json.config.showNotesInCalendar ?? true,
+      noteTruncateLength: json.config.noteTruncateLength ?? 30,
+    } as unknown as AppConfig,
   }
 }

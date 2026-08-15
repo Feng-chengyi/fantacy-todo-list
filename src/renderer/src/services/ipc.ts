@@ -4,10 +4,13 @@
  */
 import type {
   AppConfig,
+  CountdownGoal,
   CreateTaskInput,
   ExportResult,
   FullData,
+  Habit,
   ImportResult,
+  MainPanel,
   OverrideAction,
   PomodoroState,
   RepeatOverride,
@@ -53,6 +56,43 @@ export function setOverride(
 
 export function clearOverride(taskId: string, occurrenceDate: string): Promise<void> {
   return window.api.clearOverride(taskId, occurrenceDate)
+}
+
+export function createGoal(input: {
+  title: string
+  targetDate: string
+  category?: string
+  color?: string
+}): Promise<CountdownGoal> {
+  return window.api.createGoal(input)
+}
+
+export function deleteGoal(id: string): Promise<void> {
+  return window.api.deleteGoal(id)
+}
+
+export function createHabit(input: { title: string }): Promise<Habit> {
+  return window.api.createHabit(input)
+}
+
+export function deleteHabit(id: string): Promise<void> {
+  return window.api.deleteHabit(id)
+}
+
+export function toggleHabit(id: string, date: string): Promise<Habit> {
+  return window.api.toggleHabit(id, date)
+}
+
+export function setHabitArchived(id: string, archived: boolean): Promise<Habit> {
+  return window.api.setHabitArchived(id, archived)
+}
+
+export function onOpenPanel(cb: (panel: MainPanel) => void): () => void {
+  return window.api.onOpenPanel(cb)
+}
+
+export function onDataChanged(cb: () => void): () => void {
+  return window.api.onDataChanged(cb)
 }
 
 export function getConfig(): Promise<AppConfig> {
