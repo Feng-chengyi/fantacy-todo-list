@@ -1,0 +1,38 @@
+# Fantacy Todo List 打包配置（Windows / nsis）
+appId: com.fantacy.todolist
+productName: Fantacy Todo List
+copyright: Copyright © 2025 Fantacy Team
+
+directories:
+  buildResources: resources
+  output: dist
+
+# 打包内容：electron-vite 产物（含 public 里的 live2d 资源）+ 图标资源
+files:
+  - out/**/*
+  - resources/**/*
+  - package.json
+
+asar: true
+
+win:
+  target:
+    - nsis
+  icon: resources/icon.ico
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  # 关键：卸载时不删除用户数据（数据位于 %APPDATA%，与安装目录隔离）
+  deleteAppDataOnUninstall: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Fantacy Todo List
+
+# 本工程无原生模块，跳过 rebuild 以加速打包
+npmRebuild: false
+
+# Electron 二进制下载镜像（与 .npmrc 保持一致，打包阶段兜底）
+electronDownload:
+  mirror: https://npmmirror.com/mirrors/electron/
