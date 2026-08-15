@@ -54,11 +54,25 @@ export interface RepeatOverride {
   action: OverrideAction
 }
 
+/** 桌宠可选角色模型 ID */
+export type PetModelId = 'haru' | 'hiyori' | 'natori'
+
+/** 桌宠角色模型清单项（shared 统一维护） */
+export interface PetModelInfo {
+  id: PetModelId
+  /** 显示名（用于右键「切换角色」子菜单） */
+  name: string
+  /** 相对 pet.html 所在目录的 model3.json 路径 */
+  path: string
+}
+
 /** 应用配置 */
 export interface AppConfig {
   petVisible: boolean
   petPosition: { x: number; y: number }
   petScale: number
+  /** 桌宠当前角色模型 */
+  selectedModel: PetModelId
   confettiEnabled: boolean
   /** 0=周日 1=周一 */
   weekStart: number

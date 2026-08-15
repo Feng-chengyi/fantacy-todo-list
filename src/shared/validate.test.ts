@@ -34,6 +34,7 @@ function validBundle(): BackupBundle {
       petVisible: true,
       petPosition: { x: 1000, y: 700 },
       petScale: 1,
+      selectedModel: 'haru',
       confettiEnabled: true,
       weekStart: 1,
       theme: 'system',
@@ -87,6 +88,18 @@ describe('validateBackupBundle', () => {
   it('config 缺字段失败', () => {
     const b = validBundle()
     ;(b.config as unknown as Record<string, unknown>).petVisible = undefined
+    expect(validateBackupBundle(b).ok).toBe(false)
+  })
+
+  it('旧备份缺 selectedModel 可兼容（通过）', () => {
+    const b = validBundle()
+    delete (b.config as unknown as Record<string, unknown>).selectedModel
+    expect(validateBackupBundle(b).ok).toBe(true)
+  })
+
+  it('selectedModel 非法枚举失败', () => {
+    const b = validBundle()
+    ;(b.config as unknown as Record<string, unknown>).selectedModel = 'miku'
     expect(validateBackupBundle(b).ok).toBe(false)
   })
 

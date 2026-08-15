@@ -8,8 +8,8 @@ import react from '@vitejs/plugin-react'
  * - preload：两个预加载脚本（主窗口 / 桌宠窗口）
  * - renderer：双渲染入口（main 日历主窗口 + pet Live2D 桌宠窗口）
  *
- * 说明：renderer.publicDir 指向 src/pet/public，使 live2d 资源（core + haru 模型）
- * 在 dev 下可被静态服务、在 build 时复制进 out/renderer 根目录，完全离线加载。
+ * 说明：renderer.publicDir 指向 src/pet/public，使 live2d 资源（core + haru/hiyori/natori
+ * 多角色模型）在 dev 下可被静态服务、在 build 时复制进 out/renderer 根目录，完全离线加载。
  */
 export default defineConfig({
   main: {

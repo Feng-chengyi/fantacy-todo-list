@@ -3,7 +3,7 @@
  * 校验通过才允许覆盖现有数据；失败绝不改动现有数据。
  */
 import type { AppConfig, FullData } from './types'
-import { DATA_VERSION } from './defaults'
+import { DATA_VERSION, isPetModelId } from './defaults'
 
 const PRIORITIES = ['high', 'medium', 'low']
 const STATUSES = ['pending', 'done', 'abandoned']
@@ -117,6 +117,10 @@ export function validateBackupBundle(json: unknown): ValidateResult {
   }
   if (cfg.pomodoroBreakMinutes !== undefined && typeof cfg.pomodoroBreakMinutes !== 'number') {
     return { ok: false, error: 'config.pomodoroBreakMinutes 类型错误' }
+  }
+  // selectedModel 为新增字段，旧备份可缺省（由 store 回填）；存在则必须合法
+  if (cfg.selectedModel !== undefined && !isPetModelId(cfg.selectedModel)) {
+    return { ok: false, error: 'config.selectedModel 非法' }
   }
 
   return {

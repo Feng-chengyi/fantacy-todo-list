@@ -40,6 +40,8 @@ class Store {
     if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
     this.data = this.readJson<FullData>(this.dataPath, DEFAULT_DATA)
     this.config = this.readJson<AppConfig>(this.configPath, DEFAULT_CONFIG)
+    // 旧版本配置文件缺少 selectedModel 字段时回填默认值，避免桌宠端读到 undefined
+    if (!this.config.selectedModel) this.config.selectedModel = DEFAULT_CONFIG.selectedModel
     if (!existsSync(this.dataPath)) this.writeData()
     if (!existsSync(this.configPath)) this.writeConfig()
   }

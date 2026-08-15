@@ -34,8 +34,11 @@ if (!gotLock) {
       }, 300)
     })
 
-    // 桌宠窗口就绪时补推一次（应用启动即提醒）
-    petWin.once('ready-to-show', () => pushTodayBubble())
+    // 桌宠窗口就绪时补推一次（应用启动即提醒）。
+    // 延迟到渲染进程完成 onBubble 订阅后再推，避免首条气泡因竞态丢失。
+    petWin.once('ready-to-show', () => {
+      setTimeout(pushTodayBubble, 250)
+    })
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
