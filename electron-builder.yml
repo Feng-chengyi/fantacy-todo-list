@@ -7,7 +7,7 @@ directories:
   buildResources: resources
   output: dist
 
-# 打包内容：electron-vite 产物（含 public 里的 live2d 资源）+ 图标资源
+# 打包内容：electron-vite 产物 + 图标资源
 files:
   - out/**/*
   - resources/**/*

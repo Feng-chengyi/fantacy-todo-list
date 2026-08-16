@@ -6,7 +6,3 @@ dist/
 *.tsbuildinfo
 .vite/
 qa_*.txt
-
-# Live2D 专有资源（版权归 Live2D Inc.，非 MIT，不入库）
-# 通过 `npm run fetch:assets` 拉取到本地
-src/pet/public/live2d/
