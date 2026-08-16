@@ -1,10 +1,12 @@
 /**
- * 顶部栏：应用名 + 视图切换（月/周）+ 翻页 + 今天 + 番茄 + 设置 + 窗口控制。
+ * 顶部栏：应用名 + 视图切换（月/周）+ 翻页 + 今天 + 计时 + 番茄 + 设置 + 窗口控制。
  */
+import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { parseLocal, todayStr, weekDates } from '../../../../shared/date'
+import { formatHms } from '../../../../shared/time'
 import { useConfigStore } from '../../stores/configStore'
-import { useUiStore } from '../../stores/uiStore'
+import { timerElapsedMs, useUiStore } from '../../stores/uiStore'
 import * as ipc from '../../services/ipc'
 
 export function TopBar() {
@@ -22,13 +24,33 @@ export function TopBar() {
   const selectedDate = useUiStore((s) => s.selectedDate)
   const setShowSettings = useUiStore((s) => s.setShowSettings)
   const setShowPomodoro = useUiStore((s) => s.setShowPomodoro)
+  const openTimerPanel = useUiStore((s) => s.openTimerPanel)
+  const timer = useUiStore((s) => s.timer)
   const weekStart = useConfigStore((s) => s.weekStart)
+
+  // 计时进行中：每秒刷新顶部走时（paused 冻结）
+  const timerRunning = timer !== null
+  const [timerLabel, setTimerLabel] = useState('')
+  useEffect(() => {
+    if (!timer) {
+      setTimerLabel('')
+      return
+    }
+    const tick = (): void => setTimerLabel(formatHms(Math.floor(timerElapsedMs(timer) / 1000)))
+    tick()
+    if (timer.paused) return
+    const id = window.setInterval(tick, 1000)
+    return () => window.clearInterval(id)
+  }, [timer])
 
   const isWeek = view === 'week'
   const isDay = view === 'day'
+  const isList = view === 'list'
 
   let label: string
-  if (isWeek) {
+  if (isList) {
+    label = '全部任务 · 按日期分组'
+  } else if (isWeek) {
     const days = weekDates(selectedDate ?? todayStr(), weekStart)
     label = `${format(parseLocal(days[0]), 'M 月 d 日')} – ${format(parseLocal(days[6]), 'M 月 d 日')}`
   } else if (isDay) {
@@ -50,7 +72,7 @@ export function TopBar() {
       </h1>
 
       <div className="view-tabs">
-        <button className={!isWeek && !isDay ? 'active' : ''} onClick={() => setView('month')}>
+        <button className={!isWeek && !isDay && !isList ? 'active' : ''} onClick={() => setView('month')}>
           月
         </button>
         <button className={isWeek ? 'active' : ''} onClick={() => setView('week')}>
@@ -59,17 +81,23 @@ export function TopBar() {
         <button className={isDay ? 'active' : ''} onClick={() => setView('day')}>
           日
         </button>
+        <button className={isList ? 'active' : ''} onClick={() => setView('list')}>
+          列表
+        </button>
       </div>
 
-      <div className="mx-2 flex items-center gap-1">
-        <button className="nav-btn" onClick={onPrev} aria-label="上一页">
-          ‹
-        </button>
-        <span className="w-44 text-center text-sm font-semibold">{label}</span>
-        <button className="nav-btn" onClick={onNext} aria-label="下一页">
-          ›
-        </button>
-      </div>
+      {!isList && (
+        <div className="mx-2 flex items-center gap-1">
+          <button className="nav-btn" onClick={onPrev} aria-label="上一页">
+            ‹
+          </button>
+          <span className="w-44 text-center text-sm font-semibold">{label}</span>
+          <button className="nav-btn" onClick={onNext} aria-label="下一页">
+            ›
+          </button>
+        </div>
+      )}
+      {isList && <span className="ml-2 text-sm font-semibold">{label}</span>}
 
       <button className="text-btn" onClick={goToday}>
         今天
@@ -77,6 +105,13 @@ export function TopBar() {
 
       <div className="flex-1" />
 
+      <button
+        className={`text-btn ${timerRunning ? 'timer-running' : ''}`}
+        onClick={openTimerPanel}
+        title="正向计时器"
+      >
+        {timerRunning ? `⏱ ${timerLabel}` : '⏱ 计时'}
+      </button>
       <button className="text-btn" onClick={() => setShowPomodoro(true)} title="番茄钟">
         🍅 番茄
       </button>

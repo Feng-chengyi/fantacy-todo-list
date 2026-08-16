@@ -1,7 +1,7 @@
 /**
  * 主窗口顶层布局：TopBar + (Sidebar + 主视图) + 各类弹层。
  */
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useConfigStore } from './stores/configStore'
 import { useTaskStore } from './stores/taskStore'
 import { useHabitStore } from './stores/habitStore'
@@ -13,6 +13,7 @@ import { SettingsPanel } from './components/layout/SettingsPanel'
 import { MonthCalendar } from './components/calendar/MonthCalendar'
 import { WeekView } from './components/calendar/WeekView'
 import { DayView } from './components/calendar/DayView'
+import { ListView } from './components/calendar/ListView'
 import { InboxList } from './components/inbox/InboxList'
 import { TaskEditorModal } from './components/task/TaskEditorModal'
 import { TaskContextMenu } from './components/task/TaskContextMenu'
@@ -20,35 +21,38 @@ import { PomodoroTimer } from './components/pomodoro/PomodoroTimer'
 import { StatsPanel } from './components/stats/StatsPanel'
 import { HabitPanel } from './components/habit/HabitPanel'
 import { CountdownPanel } from './components/goals/CountdownPanel'
+import { TimerPanel } from './components/timer/TimerPanel'
 import * as ipc from './services/ipc'
 
 export default function App(): JSX.Element {
-  const loadTasks = useTaskStore((s) => s.load)
   const loadConfig = useConfigStore((s) => s.load)
-  const loadHabits = useHabitStore((s) => s.load)
-  const loadGoals = useGoalStore((s) => s.load)
   const showInbox = useUiStore((s) => s.showInbox)
   const showStats = useUiStore((s) => s.showStats)
   const showHabits = useUiStore((s) => s.showHabits)
   const showGoals = useUiStore((s) => s.showGoals)
+  const showTimer = useUiStore((s) => s.showTimer)
   const view = useUiStore((s) => s.view)
 
+  // 一次 loadData 往返后由三个 store 分发共用，替代原先三路各自 loadData（QA O3）
+  const refreshData = useCallback(async (): Promise<void> => {
+    const data = await ipc.loadData()
+    useTaskStore.getState().applyData(data)
+    useHabitStore.getState().applyData(data)
+    useGoalStore.getState().applyData(data)
+  }, [])
+
   useEffect(() => {
-    void loadTasks()
+    void refreshData()
     void loadConfig()
-    void loadHabits()
-    void loadGoals()
-  }, [loadTasks, loadConfig, loadHabits, loadGoals])
+  }, [refreshData, loadConfig])
 
   // 订阅主进程「数据已变更」推送（桌宠端完成/跳过任务等跨窗口写操作），
   // 触发各 store 重载，保证主窗口勾选状态即时同步。
   useEffect(() => {
     return ipc.onDataChanged(() => {
-      void loadTasks()
-      void loadHabits()
-      void loadGoals()
+      void refreshData()
     })
-  }, [loadTasks, loadHabits, loadGoals])
+  }, [refreshData])
 
   // 订阅主进程推送的「打开面板」请求（桌宠右键快捷入口）
   useEffect(() => {
@@ -60,6 +64,7 @@ export default function App(): JSX.Element {
       ui.setShowGoals(false)
       ui.setShowSettings(false)
       ui.setShowPomodoro(false)
+      ui.setShowTimer(false)
       switch (panel) {
         case 'today':
           ui.goToday()
@@ -80,6 +85,9 @@ export default function App(): JSX.Element {
         case 'settings':
           ui.setShowSettings(true)
           break
+        case 'timer':
+          ui.setShowTimer(true)
+          break
       }
     })
   }, [])
@@ -92,10 +100,14 @@ export default function App(): JSX.Element {
     <HabitPanel />
   ) : showGoals ? (
     <CountdownPanel />
+  ) : showTimer ? (
+    <TimerPanel />
   ) : view === 'week' ? (
     <WeekView />
   ) : view === 'day' ? (
     <DayView />
+  ) : view === 'list' ? (
+    <ListView />
   ) : (
     <MonthCalendar />
   )
