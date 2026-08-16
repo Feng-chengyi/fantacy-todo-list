@@ -10,15 +10,17 @@ body,
   user-select: none;
 }
 
-/* 桌宠窗口透明，PIXI canvas 覆盖全窗 */
-.live2d-stage {
-  position: fixed;
-  inset: 0;
+/* 渲染根容器：为 .sprite-stage 等 absolute 定位元素提供稳定的定位上下文 */
+.pet-root {
+  position: relative;
   width: 100%;
   height: 100%;
 }
-.live2d-stage canvas {
-  display: block;
+
+/* 精灵舞台：spritesheet 单帧窗口（背景定位换帧），硬边像素缩放 */
+.sprite-stage {
+  position: absolute;
+  image-rendering: pixelated;
 }
 
 /* 可交互热区：贴合桌宠本体轮廓（尺寸/位置由 JS 按模型与缩放动态计算），
@@ -155,7 +157,7 @@ body,
   z-index: 50;
   width: 220px;
   max-width: 220px;
-  max-height: 320px;
+  max-height: 400px;
   overflow-y: auto;
   border-radius: 8px;
   padding: 4px 0;
@@ -180,6 +182,23 @@ body,
 }
 .pet-menu button.danger {
   color: #e5484d;
+}
+
+/* 实时联动状态行（今日待办数 / 倒数日 / 番茄），弱化为主色文字 */
+.pet-menu-info {
+  color: #0a84ff !important;
+  font-weight: 600;
+}
+
+/* 菜单分组小节标题 */
+.pet-menu-section {
+  margin-top: 6px;
+  padding: 2px 14px 2px;
+  border-top: 1px solid #f0f1f3;
+  font-size: 11px;
+  color: #8a8f98;
+  font-weight: 600;
+  letter-spacing: 0.05em;
 }
 .pet-menu-arrow {
   float: right;

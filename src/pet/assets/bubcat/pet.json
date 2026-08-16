@@ -1,0 +1,74 @@
+{
+  "formatVersion": 2,
+  "spec": "codex-custom-pet-v2",
+  "id": "bubcat",
+  "name": "Codex",
+  "frame": {
+    "width": 192,
+    "height": 208
+  },
+  "spritesheet": {
+    "file": "spritesheet.png",
+    "layout": "horizontal",
+    "frameCount": 15
+  },
+  "animations": {
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "running-right": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "running-left": {
+      "frames": [
+        4,
+        5
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "waving": {
+      "frames": [
+        6,
+        7
+      ],
+      "fps": 4,
+      "loop": true
+    },
+    "jumping": {
+      "frames": [
+        8,
+        9
+      ],
+      "fps": 5,
+      "loop": false
+    },
+    "timing": {
+      "frames": [
+        10,
+        11
+      ],
+      "fps": 2,
+      "loop": true
+    },
+    "finishing": {
+      "frames": [
+        12,
+        13,
+        14
+      ],
+      "fps": 5,
+      "loop": false
+    }
+  }
+}

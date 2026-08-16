@@ -1,14 +1,41 @@
 /**
- * 桌宠 / 窗口类 IPC handler：气泡转发、显隐、移窗、鼠标穿透、聚焦、打开面板、
- * 完成今日待办、退出。
+ * 桌宠 / 窗口类 IPC handler：气泡转发、显隐、拖拽（主进程轮询绝对定位）、
+ * 鼠标穿透、聚焦、打开面板、完成今日待办、退出。
  */
-import { app, ipcMain } from 'electron'
+import { app, ipcMain, screen } from 'electron'
 import { randomUUID } from 'crypto'
 import { IPC, IPC_MAIN } from '../shared/ipc-channels'
 import { todayStr } from '../shared/date'
 import { getMainWindow, getPetWindow, setPetVisible } from './windows'
 import { store } from './store'
-import type { MainPanel, PomodoroState } from '../shared/types'
+import type { MainPanel, PetAnimNotice, PomodoroState } from '../shared/types'
+
+/** 拖拽轮询定时器与抓取偏移（光标相对窗口左上角，主进程 DIP 口径） */
+let dragTimer: NodeJS.Timeout | null = null
+let dragOffset = { x: 0, y: 0 }
+
+/** 把窗口坐标钳制到光标所在显示器工作区内（防止拖出屏幕看不见） */
+function clampToWorkArea(x: number, y: number, w: number, h: number): { x: number; y: number } {
+  const area = screen.getDisplayMatching({ x, y, width: 1, height: 1 }).workArea
+  return {
+    x: Math.min(Math.max(x, area.x), area.x + area.width - w),
+    y: Math.min(Math.max(y, area.y), area.y + area.height - h),
+  }
+}
+
+/** 停止拖拽轮询并持久化最终位置 */
+function stopDrag(persist: boolean): void {
+  if (!dragTimer) return
+  clearInterval(dragTimer)
+  dragTimer = null
+  if (persist) {
+    const win = getPetWindow()
+    if (win && !win.isDestroyed()) {
+      const [x, y] = win.getPosition()
+      store.setConfig({ petPosition: { x, y } })
+    }
+  }
+}
 
 export function registerPetIpc(): void {
   ipcMain.handle(IPC.petShowBubble, (_event, text: string): void => {
@@ -19,15 +46,42 @@ export function registerPetIpc(): void {
     setPetVisible(visible)
   })
 
-  ipcMain.handle(IPC.petMoveWindow, (_event, payload: { dx: number; dy: number }): void => {
+  /**
+   * 开始拖拽：主进程以 16ms 轮询光标并按「光标 - 抓取偏移」绝对定位窗口。
+   * 拖拽偏移修复：offset 与轮询定位全部在主进程以 DIP 口径计算（渲染端
+   * screenX 在高 DPI / 多显示器下与 DIP 不一致，是旧版图像错位的根因），
+   * 抓取点全程锁定 → 图像与光标精确同步、零漂移；位置钳制在工作区内。
+   */
+  ipcMain.handle(IPC.petBeginDrag, (): void => {
     const win = getPetWindow()
-    if (!win) return
-    const [x, y] = win.getPosition()
-    const nx = x + Math.round(payload.dx)
-    const ny = y + Math.round(payload.dy)
-    win.setPosition(nx, ny)
-    // 位置实时持久化（防抖），满足 Q6 记忆位置
-    store.setConfig({ petPosition: { x: nx, y: ny } }, { debounce: true })
+    if (!win || win.isDestroyed()) return
+    const cursor = screen.getCursorScreenPoint()
+    const [wx, wy] = win.getPosition()
+    const [ww, wh] = win.getSize()
+    dragOffset = { x: cursor.x - wx, y: cursor.y - wy }
+    // 抓取偏移按窗口尺寸钳制：异常大偏移（旧位置越界重建等）时收拢，保证
+    // 光标始终落在窗口（角色热区）范围内，图像紧贴操作位置
+    dragOffset.x = Math.min(Math.max(dragOffset.x, 0), Math.max(0, ww - 1))
+    dragOffset.y = Math.min(Math.max(dragOffset.y, 0), Math.max(0, wh - 1))
+    if (dragTimer) clearInterval(dragTimer)
+    const move = (): void => {
+      const w = getPetWindow()
+      if (!w || w.isDestroyed() || !w.isVisible()) {
+        stopDrag(false)
+        return
+      }
+      const p = screen.getCursorScreenPoint()
+      const [sw, sh] = w.getSize()
+      const pos = clampToWorkArea(p.x - dragOffset.x, p.y - dragOffset.y, sw, sh)
+      w.setPosition(Math.round(pos.x), Math.round(pos.y))
+    }
+    move() // 立即定位一帧，消除开始拖拽的跳变
+    dragTimer = setInterval(move, 16)
+  })
+
+  /** 结束拖拽：停止轮询并一次性持久化最终位置 */
+  ipcMain.handle(IPC.petEndDrag, (): void => {
+    stopDrag(true)
   })
 
   ipcMain.handle(IPC.petSetIgnoreMouse, (_event, ignore: boolean): void => {
@@ -36,6 +90,11 @@ export function registerPetIpc(): void {
 
   ipcMain.handle(IPC.petNotifyPomodoro, (_event, state: PomodoroState): void => {
     getPetWindow()?.webContents.send(IPC_MAIN.petPomodoro, state)
+  })
+
+  // 主窗口 → 桌宠：联动动画通知（timing / finishing / jumping）
+  ipcMain.handle(IPC.petNotifyAnim, (_event, notice: PetAnimNotice): void => {
+    getPetWindow()?.webContents.send(IPC_MAIN.petAnim, notice)
   })
 
   ipcMain.handle(IPC.windowFocusMain, (): void => {

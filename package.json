@@ -1,7 +1,7 @@
 {
   "name": "fantacy-todo-list",
-  "version": "1.4.0",
-  "description": "Fantacy Todo List — 桌面日历待办清单 + Live2D 桌宠陪伴",
+  "version": "2.0.0",
+  "description": "Fantacy Todo List — 桌面日历待办清单 + 2D 桌宠陪伴",
   "main": "./out/main/index.js",
   "author": "Fantacy Team",
   "license": "MIT",
@@ -16,7 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "gen:icon": "node scripts/gen-icon.mjs",
-    "fetch:assets": "node scripts/fetch-live2d-assets.mjs",
+    "gen:pets": "node scripts/gen-pets.mjs",
     "build:win": "electron-vite build && electron-builder --win"
   },
   "dependencies": {
@@ -25,8 +25,6 @@
     "@dnd-kit/utilities": "^3.2.2",
     "canvas-confetti": "^1.9.3",
     "date-fns": "^3.6.0",
-    "pixi-live2d-display": "^0.4.0",
-    "pixi.js": "^6.5.10",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^4.5.4"

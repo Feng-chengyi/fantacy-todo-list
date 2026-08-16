@@ -1,6 +1,7 @@
 /**
- * 桌宠窗口根组件：整合 Live2D 渲染、点击 / 拖拽 / 滚轮 / 右键菜单（含切换角色）、
- * 鼠标穿透、气泡与番茄徽标。
+ * 桌宠窗口根组件：精灵帧动画（Codex 宠物 v2 规范）、点击 / 拖拽（主进程轮询
+ * 绝对定位，DIP 口径精确同步）、滚轮缩放（0.3–1.6 钳制）、右键菜单、鼠标穿透、
+ * 气泡 / 番茄徽标与联动动画（timing / finishing / jumping 经 pet:notify-anim 推送）。
  *
  * 鼠标穿透策略：窗口默认穿透（setIgnoreMouse(true)）；指针悬停到热区 / 菜单时捕获，
  * 离开后恢复穿透。右键菜单打开期间强制捕获，避免「菜单按钮点不到、疑似死机」。
@@ -11,22 +12,22 @@ import type {
   MouseEvent as ReactMouseEvent,
   WheelEvent as ReactWheelEvent,
 } from 'react'
-import type { Live2DModel } from 'pixi-live2d-display'
-import type { PetGoal, PetModelId, PomodoroState, TodayTodo } from '../../shared/types'
-import { PET_MODELS, isPetModelId } from '../../shared/defaults'
-import { Live2DStage } from './Live2DStage'
+import type { PetGoal, PetCharacterId, PomodoroState, TodayTodo } from '../../shared/types'
+import { PET_CHARACTERS, isPetCharacterId } from '../../shared/defaults'
+import { pomodoroPhaseLabel } from '../../shared/pomodoro'
 import { Bubble } from './bubble'
 import { PomodoroBadge } from './PomodoroBadge'
 import { TodayOverlay } from './TodayOverlay'
 import { firePetConfetti } from './confetti'
+import { SpritePetStage } from './sprite/SpritePetStage'
+import { usePetAnimState } from './sprite/usePetAnimState'
 import {
   DEFAULT_PET_HIT_BOX,
   DRAG_THRESHOLD,
   clampScale,
-  computePetHitBox,
-  pickTapMotionGroup,
+  computeHitBox,
   type PetHitBox,
-} from './pet-events'
+} from './sprite/pet-geometry'
 
 interface MenuState {
   x: number
@@ -36,16 +37,18 @@ interface MenuState {
 interface DragState {
   down: boolean
   moved: boolean
+  /** 已进入主进程轮询拖拽（beginDrag 已调用） */
+  dragging: boolean
   lastX: number
   lastY: number
 }
 
 /** 右键菜单固定尺寸 + 与窗口边缘的安全间距（用于位置钳制，避免菜单溢出窗口） */
 const MENU_WIDTH = 220
-const MENU_HEIGHT = 320
+const MENU_HEIGHT = 400
 const MENU_MARGIN = 4
 
-/** 将菜单位置钳制在窗口可视范围内（固定 220×320 尺寸下最坏情况仍不溢出） */
+/** 将菜单位置钳制在窗口可视范围内 */
 function clampMenuPosition(x: number, y: number): { x: number; y: number } {
   const maxX = Math.max(MENU_MARGIN, window.innerWidth - MENU_WIDTH - MENU_MARGIN)
   const maxY = Math.max(MENU_MARGIN, window.innerHeight - MENU_HEIGHT - MENU_MARGIN)
@@ -56,15 +59,15 @@ function clampMenuPosition(x: number, y: number): { x: number; y: number } {
 }
 
 export function PetApp() {
-  const modelRef = useRef<Live2DModel | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
-  const baseScaleRef = useRef(1)
   const scaleRef = useRef(1)
-  const dragRef = useRef<DragState>({ down: false, moved: false, lastX: 0, lastY: 0 })
+  // 拖拽阈值判定用 client 坐标（与 DPI / 多显示器无关；旧版 screenX 在高 DPI
+  // 下与主进程 DIP 口径不一致，是拖拽图像错位的根因之一）
+  const dragRef = useRef<DragState>({ down: false, moved: false, dragging: false, lastX: 0, lastY: 0 })
   const menuOpenRef = useRef(false)
   const confettiRef = useRef(true)
 
-  const [modelId, setModelId] = useState<PetModelId>('haru')
+  const [characterId, setCharacterId] = useState<PetCharacterId>('bubcat')
   const [menu, setMenu] = useState<MenuState | null>(null)
   const [showRoles, setShowRoles] = useState(false)
   const [bubble, setBubble] = useState<string | null>(null)
@@ -74,7 +77,10 @@ export function PetApp() {
   const [hovering, setHovering] = useState(false)
   const [hitBox, setHitBox] = useState<PetHitBox>(DEFAULT_PET_HIT_BOX)
 
-  /** 浮层离开隐藏计时器：给鼠标从模型移动到浮层留出过渡时间 */
+  // 联动动画状态机（一次性动画 > timing > running > idle）；回调均为稳定引用
+  const { anim: petAnim, restartKey, trigger, setTiming, setRunning, handleFinish } = usePetAnimState()
+
+  /** 浮层离开隐藏计时器：给鼠标从角色移动到浮层留出过渡时间 */
   const hideTimerRef = useRef<number | null>(null)
 
   /** 统一的鼠标穿透开关：interactive=true 表示捕获鼠标 */
@@ -98,13 +104,6 @@ export function PetApp() {
     }, 150)
   }, [cancelHide, setPetInteractive])
 
-  const onModelReady = useCallback((model: Live2DModel, baseScale: number) => {
-    modelRef.current = model
-    baseScaleRef.current = baseScale
-    model.scale.set(baseScale * scaleRef.current)
-    setHitBox(computePetHitBox(model))
-  }, [])
-
   const closeMenu = useCallback(() => {
     setMenu(null)
     setShowRoles(false)
@@ -122,54 +121,52 @@ export function PetApp() {
     [setPetInteractive],
   )
 
-  const switchModel = useCallback(
-    (id: PetModelId) => {
+  const switchCharacter = useCallback(
+    (id: PetCharacterId) => {
       closeMenu()
-      if (id === modelId) return
-      // 立即清空旧模型引用，避免切换过程中对已销毁模型触发动作
-      modelRef.current = null
-      setModelId(id)
-      void window.petApi.setConfig({ selectedModel: id })
+      if (id === characterId) return
+      setCharacterId(id)
+      void window.petApi.setConfig({ selectedCharacter: id })
     },
-    [modelId, closeMenu],
+    [characterId, closeMenu],
   )
 
-  // 点击随机动作：读取模型真实 Motions 分组（优先 TapBody，回退 Idle）
+  // 点击随机动作：挥手招呼
   const playRandom = useCallback(() => {
-    const model = modelRef.current
-    if (!model) return
-    void model.motion(pickTapMotionGroup(model))
-  }, [])
+    trigger('waving')
+  }, [trigger])
 
-  // 完成待办后的庆祝反馈：随机动作 + 撒花 + 鼓励文案气泡
+  // 完成待办后的庆祝反馈：finishing 动画 + 撒花 + 鼓励文案气泡
   const celebrate = useCallback(() => {
-    playRandom()
+    trigger('finishing')
     const phrases = ['太棒了！', '真厉害！', '又完成一件！', '继续保持！', '好样的！']
     setBubble(phrases[Math.floor(Math.random() * phrases.length)])
     window.setTimeout(() => setBubble(null), 3000)
     if (confettiRef.current) firePetConfetti()
-  }, [playRandom])
+  }, [trigger])
 
-  // 初始化：读配置（角色 / 缩放）、订阅气泡 / 番茄 / 今日待办、默认鼠标穿透
+  // 初始化：读配置（角色 / 缩放）、订阅气泡 / 番茄 / 联动动画 / 今日待办、默认鼠标穿透
   useEffect(() => {
     let disposed = false
     void window.petApi.getConfig().then((cfg) => {
       if (disposed) return
       scaleRef.current = clampScale(cfg.petScale ?? 1)
       confettiRef.current = cfg.confettiEnabled !== false
-      const model = modelRef.current
-      if (model) {
-        model.scale.set(baseScaleRef.current * scaleRef.current)
-        setHitBox(computePetHitBox(model))
-      }
-      const target: PetModelId = isPetModelId(cfg.selectedModel) ? cfg.selectedModel : 'haru'
-      setModelId((current) => (current === target ? current : target))
+      const target: PetCharacterId = isPetCharacterId(cfg.selectedCharacter) ? cfg.selectedCharacter : 'bubcat'
+      setCharacterId((current) => (current === target ? current : target))
+      setHitBox(computeHitBox(scaleRef.current))
     })
     const offBubble = window.petApi.onBubble((text) => {
       setBubble(text)
       window.setTimeout(() => setBubble(null), 4000)
     })
     const offPomodoro = window.petApi.onPomodoro((state) => setPomodoro(state))
+    // 主窗口联动动画：timing（正向计时）/ finishing（任务完成）/ jumping（番茄完成）
+    const offAnim = window.petApi.onAnim((notice) => {
+      if (notice.anim === 'timing') setTiming(notice.active === true)
+      else if (notice.anim === 'finishing') trigger('finishing')
+      else if (notice.anim === 'jumping') trigger('jumping')
+    })
     const offTodayTodos = window.petApi.onTodayTodos((list) => setTodos(list))
     const offGoals = window.petApi.onGoals((list) => setGoals(list))
     setPetInteractive(false)
@@ -177,38 +174,65 @@ export function PetApp() {
       disposed = true
       offBubble()
       offPomodoro()
+      offAnim()
       offTodayTodos()
       offGoals()
     }
-  }, [setPetInteractive])
+  }, [setPetInteractive, setTiming, trigger])
 
-  // window 级 mousemove/mouseup：拖拽移窗（拖出热区仍可继续）
+  /**
+   * window 级拖拽状态机：超过阈值判定为拖拽后，仅向主进程发一次 beginDrag，
+   * 之后由主进程 16ms 轮询光标绝对定位窗口（DIP 口径，抓取点锁定零漂移）。
+   * 拖拽期间按水平方向播放 running-right / running-left。
+   */
   useEffect(() => {
     const onMove = (e: MouseEvent): void => {
       const d = dragRef.current
-      if (!d.down) return
-      const dx = e.screenX - d.lastX
-      const dy = e.screenY - d.lastY
-      if (!d.moved && Math.abs(dx) + Math.abs(dy) > DRAG_THRESHOLD) d.moved = true
-      if (d.moved) {
-        d.lastX = e.screenX
-        d.lastY = e.screenY
-        void window.petApi.moveWindow(dx, dy)
+      if (!d.down || d.dragging) {
+        // 拖拽进行中：持续按 clientX 方向更新跑动朝向
+        if (d.dragging) {
+          const dx = e.clientX - d.lastX
+          if (Math.abs(dx) > 1) setRunning(dx > 0 ? 'right' : 'left')
+        }
+        return
+      }
+      const dist = Math.abs(e.clientX - d.lastX) + Math.abs(e.clientY - d.lastY)
+      if (!d.moved && dist > DRAG_THRESHOLD) {
+        d.moved = true
+        d.dragging = true
+        void window.petApi.beginDrag()
       }
     }
-    const onUp = (): void => {
+    const endDrag = (): void => {
       const d = dragRef.current
+      if (d.dragging) {
+        void window.petApi.endDrag()
+        setRunning(null)
+      }
       if (d.down && !d.moved) playRandom()
       d.down = false
       d.moved = false
+      d.dragging = false
+    }
+    const onBlur = (): void => {
+      const d = dragRef.current
+      if (d.dragging) {
+        void window.petApi.endDrag()
+        setRunning(null)
+      }
+      d.down = false
+      d.moved = false
+      d.dragging = false
     }
     window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
+    window.addEventListener('mouseup', endDrag)
+    window.addEventListener('blur', onBlur)
     return () => {
       window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('mouseup', endDrag)
+      window.removeEventListener('blur', onBlur)
     }
-  }, [playRandom])
+  }, [playRandom, setRunning])
 
   // 菜单打开期间：全局监听点击（菜单外即关闭，覆盖透明穿透区）与窗口失焦（点击桌面/其它应用关闭）
   useEffect(() => {
@@ -229,17 +253,14 @@ export function PetApp() {
 
   const onMouseDown = (e: ReactMouseEvent): void => {
     if (e.button !== 0) return
-    dragRef.current = { down: true, moved: false, lastX: e.screenX, lastY: e.screenY }
+    dragRef.current = { down: true, moved: false, dragging: false, lastX: e.clientX, lastY: e.clientY }
   }
 
   const onWheel = (e: ReactWheelEvent): void => {
     const delta = e.deltaY > 0 ? -0.1 : 0.1
+    // 缩放钳制在 [0.3, 1.6]，防止过大或过小
     scaleRef.current = clampScale(scaleRef.current + delta)
-    const model = modelRef.current
-    if (model) {
-      model.scale.set(baseScaleRef.current * scaleRef.current)
-      setHitBox(computePetHitBox(model))
-    }
+    setHitBox(computeHitBox(scaleRef.current))
     void window.petApi.setConfig({ petScale: scaleRef.current })
   }
 
@@ -248,18 +269,36 @@ export function PetApp() {
     openMenu(e.clientX, e.clientY)
   }
 
-  // 浮层定位：模型上方、水平居中，随 hitBox（scale）动态变化
+  // 浮层定位：角色上方、水平居中，随 hitBox（scale）动态变化
   const overlayStyle: CSSProperties = {
     left: hitBox.left + hitBox.width / 2,
     top: Math.max(8, hitBox.top - 12),
     transform: 'translate(-50%, -100%)',
   }
 
+  // 菜单实时联动数据
+  const nearestGoal = goals.find((g) => g.daysLeft >= 0)
+  const pomodoroActive = pomodoro != null && pomodoro.phase !== 'idle'
+
+  const openPanelAndClose = useCallback(
+    (panel: Parameters<typeof window.petApi.openPanel>[0]) => {
+      void window.petApi.openPanel(panel)
+      closeMenu()
+    },
+    [closeMenu],
+  )
+
   return (
     <div className="pet-root">
-      <Live2DStage modelId={modelId} onModelReady={onModelReady} />
+      <SpritePetStage
+        characterId={characterId}
+        scale={scaleRef.current}
+        anim={petAnim}
+        restartKey={restartKey}
+        onAnimFinish={handleFinish}
+      />
 
-      {/* 可交互热区：贴合模型轮廓；进入则捕获鼠标，离开则穿透（菜单打开期间不穿透） */}
+      {/* 可交互热区：贴合角色轮廓；进入则捕获鼠标，离开则穿透（菜单打开期间不穿透） */}
       <div
         className="pet-hit-area"
         style={{ left: hitBox.left, top: hitBox.top, width: hitBox.width, height: hitBox.height }}
@@ -307,19 +346,48 @@ export function PetApp() {
           })()}
           onMouseEnter={() => setPetInteractive(true)}
         >
+          {/* 实时联动状态区：数据来自主进程推送，完成待办后数字即时变化 */}
+          <button className="pet-menu-info" onClick={() => openPanelAndClose('today')}>
+            📋 今日待办 · {todos.length} 项{todos.length > 0 ? '（点击查看）' : '，全部完成 🎉'}
+          </button>
+          {nearestGoal && (
+            <button className="pet-menu-info" onClick={() => openPanelAndClose('goals')}>
+              ⏳ {nearestGoal.daysLeft === 0
+                ? `『${nearestGoal.title}』就是今天`
+                : `距『${nearestGoal.title}』还有 ${nearestGoal.daysLeft} 天`}
+            </button>
+          )}
+          {pomodoroActive && pomodoro && (
+            <button className="pet-menu-info" onClick={() => openPanelAndClose('pomodoro')}>
+              {pomodoroPhaseLabel(pomodoro.phase)}
+            </button>
+          )}
+
+          <div className="pet-menu-section">角色</div>
           <button onClick={() => setShowRoles((v) => !v)}>
             切换角色 <span className="pet-menu-arrow">▸</span>
           </button>
           {showRoles && (
             <div className="pet-menu-sub">
-              {PET_MODELS.map((m) => (
-                <button key={m.id} onClick={() => switchModel(m.id)}>
-                  <span className="pet-menu-check">{m.id === modelId ? '✓' : ''}</span>
+              {PET_CHARACTERS.map((m) => (
+                <button key={m.id} onClick={() => switchCharacter(m.id)}>
+                  <span className="pet-menu-check">{m.id === characterId ? '✓' : ''}</span>
                   {m.name}
                 </button>
               ))}
             </div>
           )}
+
+          <div className="pet-menu-section">面板</div>
+          <button onClick={() => openPanelAndClose('timer')}>⏱ 计时器</button>
+          <button onClick={() => openPanelAndClose('pomodoro')}>番茄钟</button>
+          <button onClick={() => openPanelAndClose('stats')}>统计</button>
+          <button onClick={() => openPanelAndClose('habits')}>习惯</button>
+          <button onClick={() => openPanelAndClose('goals')}>倒数日</button>
+          <button onClick={() => openPanelAndClose('settings')}>设置</button>
+
+          <div className="pet-menu-section">应用</div>
+          <button onClick={() => openPanelAndClose('today')}>今日待办</button>
           <button
             onClick={() => {
               void window.petApi.setVisible(false)
@@ -335,54 +403,6 @@ export function PetApp() {
             }}
           >
             显示主窗口
-          </button>
-          <button
-            onClick={() => {
-              void window.petApi.openPanel('today')
-              closeMenu()
-            }}
-          >
-            今日待办
-          </button>
-          <button
-            onClick={() => {
-              void window.petApi.openPanel('stats')
-              closeMenu()
-            }}
-          >
-            统计
-          </button>
-          <button
-            onClick={() => {
-              void window.petApi.openPanel('habits')
-              closeMenu()
-            }}
-          >
-            习惯
-          </button>
-          <button
-            onClick={() => {
-              void window.petApi.openPanel('goals')
-              closeMenu()
-            }}
-          >
-            倒数日
-          </button>
-          <button
-            onClick={() => {
-              void window.petApi.openPanel('pomodoro')
-              closeMenu()
-            }}
-          >
-            番茄钟
-          </button>
-          <button
-            onClick={() => {
-              void window.petApi.openPanel('settings')
-              closeMenu()
-            }}
-          >
-            设置
           </button>
           <button
             className="danger"
