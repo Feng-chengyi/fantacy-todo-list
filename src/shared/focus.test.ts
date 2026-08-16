@@ -1,14 +1,16 @@
 /**
  * 专注计时领域纯函数单测（QA Bug 1 / O1 / O2 / O5 / O6 对应纯函数）。
  */
-import { describe, expect, it } from 'vitest'
-import type { FullData, FocusSession, Task } from './types'
+import { describe, expect, it, vi } from 'vitest'
+import type { FullData, FocusSession, Task, TimerState } from './types'
 import {
   applyFocusCommit,
   buildPomodoroSession,
+  isSameTimerInstance,
   selectTimerCandidates,
   shouldAutoplayBgm,
   shouldRecordFocus,
+  timerElapsedMs,
 } from './focus'
 
 function task(over: Partial<Task> & { id: string }): Task {
@@ -147,5 +149,69 @@ describe('selectTimerCandidates 计时面板候选（O6：放宽全部 pending�
     const tasks = [task({ id: 'inbox', date: null }), task({ id: 'dated', date: '2025-08-15' })]
     selectTimerCandidates(tasks)
     expect(tasks.map((t) => t.id)).toEqual(['inbox', 'dated'])
+  })
+})
+
+describe('isSameTimerInstance 重复计时日期隔离（Bug：仅被开启计时的实例显示计时态）', () => {
+  const timer = (taskId: string, occurrenceDate: string | null): TimerState => ({
+    taskId,
+    occurrenceDate,
+    startedAt: Date.now(),
+    beginAt: Date.now(),
+    accumMs: 0,
+    paused: false,
+  })
+
+  it('同任务 + 同实例日期 → true', () => {
+    expect(isSameTimerInstance(timer('t1', '2025-08-15'), 't1', '2025-08-15')).toBe(true)
+  })
+
+  it('同任务 + 不同实例日期 → false（重复任务实例隔离核心）', () => {
+    expect(isSameTimerInstance(timer('t1', '2025-08-15'), 't1', '2025-08-16')).toBe(false)
+  })
+
+  it('不同任务 → false', () => {
+    expect(isSameTimerInstance(timer('t1', '2025-08-15'), 't2', '2025-08-15')).toBe(false)
+  })
+
+  it('任务级 / 自由计时（双方 occurrenceDate 均为 null）→ true', () => {
+    expect(isSameTimerInstance(timer('t1', null), 't1', null)).toBe(true)
+  })
+
+  it('任务级计时（occurrenceDate=null）不匹配具体实例日期', () => {
+    expect(isSameTimerInstance(timer('t1', null), 't1', '2025-08-15')).toBe(false)
+  })
+})
+
+describe('timerElapsedMs 走时计算', () => {
+  it('暂停时冻结为累计毫秒，忽略 startedAt', () => {
+    const t: TimerState = {
+      taskId: '',
+      occurrenceDate: null,
+      startedAt: Date.now(),
+      beginAt: 0,
+      accumMs: 5000,
+      paused: true,
+    }
+    expect(timerElapsedMs(t)).toBe(5000)
+  })
+
+  it('进行中 = accumMs + (now - startedAt)', () => {
+    vi.useFakeTimers()
+    try {
+      const now = 1_000_000
+      vi.setSystemTime(now)
+      const t: TimerState = {
+        taskId: '',
+        occurrenceDate: null,
+        startedAt: now - 3000,
+        beginAt: 0,
+        accumMs: 5000,
+        paused: false,
+      }
+      expect(timerElapsedMs(t)).toBe(8000)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

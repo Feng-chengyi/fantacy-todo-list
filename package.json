@@ -1,6 +1,6 @@
 {
   "name": "fantacy-todo-list",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "description": "Fantacy Todo List — 桌面日历待办清单 + 2D 桌宠陪伴",
   "main": "./out/main/index.js",
   "author": "Fantacy Team",

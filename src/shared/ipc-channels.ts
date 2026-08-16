@@ -36,8 +36,16 @@ export const IPC = {
   petSetIgnoreMouse: 'pet:set-ignore-mouse',
   petNotifyPomodoro: 'pet:notify-pomodoro',
   petCompleteTask: 'pet:complete-task',
+  petSetSize: 'pet:set-size',
+  petGetWorkArea: 'pet:get-work-area',
   /** 主窗口 → 桌宠：联动动画通知（timing / finishing / jumping） */
   petNotifyAnim: 'pet:notify-anim',
+  // 自定义宠物包管理（保存 / 列表 / 删除 / 导出导入 .petpack）
+  petPackList: 'pet:pack:list',
+  petPackSave: 'pet:pack:save',
+  petPackDelete: 'pet:pack:delete',
+  petPackExport: 'pet:pack:export',
+  petPackImport: 'pet:pack:import',
   // 计时器资产（背景图 / BGM）
   timerPickAsset: 'timer:pick-asset',
   timerClearAsset: 'timer:clear-asset',
@@ -59,6 +67,8 @@ export const IPC_MAIN = {
   openPanel: 'window:open-panel-request',
   /** 数据已变更（主窗口订阅后重载 task/habit/goal store） */
   dataChanged: 'data:changed',
+  /** 全局快捷键动作（主窗口订阅后分发到 newTask / openTimer / openSearch） */
+  shortcut: 'app:shortcut',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

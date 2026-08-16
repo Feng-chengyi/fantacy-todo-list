@@ -10,6 +10,7 @@ import * as ipc from '../../services/ipc'
 export function SettingsPanel() {
   const showSettings = useUiStore((s) => s.showSettings)
   const setShowSettings = useUiStore((s) => s.setShowSettings)
+  const setShowPetMaker = useUiStore((s) => s.setShowPetMaker)
   const confettiEnabled = useConfigStore((s) => s.confettiEnabled)
   const weekStart = useConfigStore((s) => s.weekStart)
   const petVisible = useConfigStore((s) => s.petVisible)
@@ -91,6 +92,20 @@ export function SettingsPanel() {
             }}
           />
         </label>
+
+        <div className="setting-row">
+          <span>制作桌宠</span>
+          <button
+            className="primary-btn"
+            onClick={() => {
+              // 打开向导并收起设置面板（同层弹层互斥）
+              setShowSettings(false)
+              setShowPetMaker(true)
+            }}
+          >
+            打开向导
+          </button>
+        </div>
 
         <label className="setting-row">
           <span>番茄·专注时长（分钟）</span>

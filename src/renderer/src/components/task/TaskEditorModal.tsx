@@ -6,8 +6,10 @@ import type { Priority, RepeatRule, Task } from '../../../../shared/types'
 import { CATEGORY_PRESETS, COLOR_PRESETS, PRIORITY_LABELS } from '../../../../shared/defaults'
 import { todayStr } from '../../../../shared/date'
 import { hasOverlap } from '../../../../shared/conflict'
+import { isSameTimerInstance } from '../../../../shared/focus'
 import { formatDurationMinutes, timeToMinutes } from '../../../../shared/time'
 import { useTaskStore } from '../../stores/taskStore'
+import { useConfigStore } from '../../stores/configStore'
 import { useUiStore } from '../../stores/uiStore'
 import { commitFocus, switchTimer } from '../../services/focus'
 import { RepeatRuleEditor } from './RepeatRuleEditor'
@@ -25,6 +27,7 @@ export function TaskEditorModal() {
   const deleteTask = useTaskStore((s) => s.deleteTask)
   const moveTask = useTaskStore((s) => s.moveTask)
   const tasks = useTaskStore((s) => s.tasks)
+  const reminderDefaultTime = useConfigStore((s) => s.reminderDefaultTime ?? '09:00')
 
   const [title, setTitle] = useState('')
   const [date, setDate] = useState<string>(todayStr())
@@ -36,6 +39,8 @@ export function TaskEditorModal() {
   const [color, setColor] = useState('')
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
+  const [reminderEnabled, setReminderEnabled] = useState(false)
+  const [reminderTime, setReminderTime] = useState('')
 
   useEffect(() => {
     if (!editor) return
@@ -49,7 +54,9 @@ export function TaskEditorModal() {
     setColor(editor.task?.color ?? '')
     setStartTime(editor.task?.startTime ?? '')
     setEndTime(editor.task?.endTime ?? '')
-  }, [editor])
+    setReminderEnabled(!!editor.task?.reminder)
+    setReminderTime(editor.task?.reminder?.time ?? reminderDefaultTime)
+  }, [editor, reminderDefaultTime])
 
   // 起止时间校验：两者都填时 startTime 必须 < endTime
   const timeError = !!startTime && !!endTime && timeToMinutes(startTime) >= timeToMinutes(endTime)
@@ -70,6 +77,7 @@ export function TaskEditorModal() {
     if (!title.trim() || timeError) return
     const finalDate = inInbox ? null : date
     const timePatch = { startTime: startTime || undefined, endTime: endTime || undefined }
+    const reminderPatch = { reminder: reminderEnabled ? { time: reminderTime } : null }
     if (isEdit) {
       // 日期变化统一走 moveTask（与拖拽改期一致：清空重复任务旧 overrides、收集箱排序）
       if (finalDate !== editor.task!.date) {
@@ -83,6 +91,7 @@ export function TaskEditorModal() {
         category: category.trim(),
         color: color.trim(),
         ...timePatch,
+        ...reminderPatch,
       })
     } else {
       await createTask({
@@ -94,6 +103,7 @@ export function TaskEditorModal() {
         category: category.trim(),
         color: color.trim(),
         ...timePatch,
+        ...reminderPatch,
       })
     }
     closeEditor()
@@ -175,13 +185,36 @@ export function TaskEditorModal() {
                 ⚠ 时间冲突：{conflicts.map((t) => `『${t.title}』`).join('、')}
               </div>
             )}
+
+            <div className="mb-3 flex items-center gap-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={reminderEnabled}
+                  onChange={(e) => {
+                    const checked = e.target.checked
+                    setReminderEnabled(checked)
+                    if (checked && !reminderTime) setReminderTime(reminderDefaultTime)
+                  }}
+                />
+                <span style={{ color: 'var(--text-muted)' }}>设置提醒</span>
+              </label>
+              {reminderEnabled && (
+                <input
+                  type="time"
+                  className="input"
+                  value={reminderTime}
+                  onChange={(e) => setReminderTime(e.target.value)}
+                />
+              )}
+            </div>
           </>
         )}
 
         {isEdit && (
           <div className="mb-3 flex items-center gap-2">
-            <Stopwatch taskId={editor.task!.id} />
-            {timer?.taskId === editor.task!.id ? (
+            <Stopwatch taskId={editor.task!.id} occurrenceDate={editor.task!.date ?? null} />
+            {!!timer && isSameTimerInstance(timer, editor.task!.id, editor.task!.date ?? null) ? (
               <button className="ghost-btn" onClick={() => void commitFocus()}>
                 停止计时
               </button>
@@ -190,7 +223,7 @@ export function TaskEditorModal() {
                 className="ghost-btn"
                 onClick={() => {
                   // 先提交旧计时再开新计时，保证切换任务不丢上一任务时长（QA Bug 1）
-                  void switchTimer(editor.task!.id)
+                  void switchTimer(editor.task!.id, editor.task!.date ?? null)
                   // 定向：切到主界面计时器面板并立即开始计时
                   closeEditor()
                   openTimerPanel()

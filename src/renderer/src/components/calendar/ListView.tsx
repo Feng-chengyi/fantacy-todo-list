@@ -7,6 +7,7 @@ import { useMemo, type MouseEvent } from 'react'
 import type { Occurrence } from '../../../../shared/types'
 import { buildListGroups, type ListGroup } from '../../../../shared/listView'
 import { taskColor } from '../../../../shared/defaults'
+import { isSameTimerInstance } from '../../../../shared/focus'
 import { formatDurationMinutes } from '../../../../shared/time'
 import { todayStr } from '../../../../shared/date'
 import { fireConfetti } from '../../lib/confetti'
@@ -31,11 +32,13 @@ function ListRow({ occurrence }: { occurrence: Occurrence }) {
   const isRepeat = !!task.repeat
   const done = status === 'done'
   const abandoned = status === 'abandoned'
-  const isTiming = timer?.taskId === task.id
+  // 收集箱行 date 为 ''（哨兵），计时实例日期归一为 null（非重复任务按 taskId 唯一识别）
+  const occurrenceDate = date || null
+  const isTiming = !!timer && isSameTimerInstance(timer, task.id, occurrenceDate)
 
-  /** 完成时若正在对该任务计时，统一走 commitFocus 落库（含 5 秒下限过滤） */
+  /** 完成时若正在对该任务实例计时，统一走 commitFocus 落库（含 5 秒下限过滤） */
   const recordDuration = (): void => {
-    if (timer?.taskId === task.id) void commitFocus()
+    if (timer && isSameTimerInstance(timer, task.id, occurrenceDate)) void commitFocus()
   }
 
   const toggleDone = (e: MouseEvent): void => {
@@ -99,7 +102,7 @@ function ListRow({ occurrence }: { occurrence: Occurrence }) {
         )}
         {isTiming ? (
           <>
-            <Stopwatch taskId={task.id} />
+            <Stopwatch taskId={task.id} occurrenceDate={occurrenceDate} />
             <button
               className="mini-btn timer-btn"
               onClick={(e) => {
@@ -118,7 +121,7 @@ function ListRow({ occurrence }: { occurrence: Occurrence }) {
               className="mini-btn timer-btn"
               onClick={(e) => {
                 e.stopPropagation()
-                void switchTimer(task.id)
+                void switchTimer(task.id, occurrenceDate)
                 openTimerPanel()
               }}
               title="开始计时"

@@ -2,32 +2,17 @@
  * UI 状态 store：当前年月、选中日期、编辑弹窗、筛选、拖拽态、右键菜单。
  */
 import { create } from 'zustand'
-import type { Task } from '../../../shared/types'
+import type { Task, TimerMode, TimerState } from '../../../shared/types'
+import { timerElapsedMs } from '../../../shared/focus'
 import { addDays, currentYearMonth, shiftMonth, todayStr } from '../../../shared/date'
+
+// 正向计时纯函数与状态类型已迁入 shared（focus.ts / types.ts），此处保留再导出
+// 以兼容存量 renderer 引用（TopBar / TimerPanel / Stopwatch / services/focus）。
+export { timerElapsedMs }
+export type { TimerState }
 
 export type TaskFilter = 'all' | 'pending' | 'done' | 'abandoned'
 export type CalendarView = 'month' | 'week' | 'day' | 'list'
-
-/**
- * 正向计时器状态（进行中的秒表，不跨端持久化）。
- * elapsed = accumMs + (paused ? 0 : now - startedAt)；paused 时 startedAt 无效。
- */
-export interface TimerState {
-  /** 绑定的任务 ID；空字符串 = 自由计时（未绑定任务） */
-  taskId: string
-  /** 当前段起始毫秒时间戳（Date.now()） */
-  startedAt: number
-  /** 会话最初开始时刻（暂停/继续不重置，用于生成 FocusSession.startedAt） */
-  beginAt: number
-  /** 暂停前累计毫秒 */
-  accumMs: number
-  paused: boolean
-}
-
-/** 计算当前已计时的毫秒数（纯函数，供各处展示复用） */
-export function timerElapsedMs(t: TimerState): number {
-  return t.accumMs + (t.paused ? 0 : Date.now() - t.startedAt)
-}
 
 export interface EditorState {
   /** null = 新建；否则为编辑已有任务 */
@@ -53,12 +38,19 @@ interface UiState {
   editor: EditorState | null
   filter: TaskFilter
   showSettings: boolean
+  /** 制作桌宠向导弹层（从设置面板调起） */
+  showPetMaker: boolean
   showInbox: boolean
   showStats: boolean
-  showPomodoro: boolean
   showHabits: boolean
   showGoals: boolean
   showTimer: boolean
+  /** 全局搜索弹层（T05） */
+  showSearch: boolean
+  /** 使用说明面板（T05） */
+  showHelp: boolean
+  /** 计时器模式：正向计时 / 番茄钟（统一计时页切换） */
+  timerMode: TimerMode
   dragOverDate: string | null
   contextMenu: ContextMenuState | null
   /** 正向计时：当前正在计时的任务 */
@@ -77,17 +69,20 @@ interface UiState {
   closeEditor: () => void
   setFilter: (f: TaskFilter) => void
   setShowSettings: (v: boolean) => void
+  setShowPetMaker: (v: boolean) => void
   setShowInbox: (v: boolean) => void
   setShowStats: (v: boolean) => void
-  setShowPomodoro: (v: boolean) => void
   setShowHabits: (v: boolean) => void
   setShowGoals: (v: boolean) => void
   setShowTimer: (v: boolean) => void
-  /** 打开计时面板并关闭其它主视图面板（供任务计时按钮「定向」复用） */
-  openTimerPanel: () => void
+  setShowSearch: (v: boolean) => void
+  setShowHelp: (v: boolean) => void
+  setTimerMode: (mode: TimerMode) => void
+  /** 打开计时面板并关闭其它主视图面板；传 mode 时同时切换计时器模式（供快捷键/番茄入口复用） */
+  openTimerPanel: (mode?: TimerMode) => void
   setDragOverDate: (d: string | null) => void
   setContextMenu: (m: ContextMenuState | null) => void
-  startTimer: (taskId: string) => void
+  startTimer: (taskId: string, occurrenceDate?: string | null) => void
   pauseTimer: () => void
   resumeTimer: () => void
   stopTimer: () => void
@@ -103,12 +98,15 @@ export const useUiStore = create<UiState>((set) => ({
   editor: null,
   filter: 'all',
   showSettings: false,
+  showPetMaker: false,
   showInbox: false,
   showStats: false,
-  showPomodoro: false,
   showHabits: false,
   showGoals: false,
   showTimer: false,
+  showSearch: false,
+  showHelp: false,
+  timerMode: 'stopwatch',
   dragOverDate: null,
   contextMenu: null,
   timer: null,
@@ -153,11 +151,11 @@ export const useUiStore = create<UiState>((set) => ({
 
   setShowSettings: (v) => set({ showSettings: v }),
 
+  setShowPetMaker: (v) => set({ showPetMaker: v }),
+
   setShowInbox: (v) => set({ showInbox: v }),
 
   setShowStats: (v) => set({ showStats: v }),
-
-  setShowPomodoro: (v) => set({ showPomodoro: v }),
 
   setShowHabits: (v) => set({ showHabits: v }),
 
@@ -165,15 +163,37 @@ export const useUiStore = create<UiState>((set) => ({
 
   setShowTimer: (v) => set({ showTimer: v }),
 
-  openTimerPanel: () =>
-    set({ showInbox: false, showStats: false, showHabits: false, showGoals: false, showTimer: true }),
+  setShowSearch: (v) => set({ showSearch: v }),
+
+  setShowHelp: (v) => set({ showHelp: v }),
+
+  setTimerMode: (mode) => set({ timerMode: mode }),
+
+  openTimerPanel: (mode) =>
+    set({
+      showInbox: false,
+      showStats: false,
+      showHabits: false,
+      showGoals: false,
+      showTimer: true,
+      ...(mode ? { timerMode: mode } : {}),
+    }),
 
   setDragOverDate: (d) => set({ dragOverDate: d }),
 
   setContextMenu: (m) => set({ contextMenu: m }),
 
-  startTimer: (taskId) =>
-    set({ timer: { taskId, startedAt: Date.now(), beginAt: Date.now(), accumMs: 0, paused: false } }),
+  startTimer: (taskId, occurrenceDate = null) =>
+    set({
+      timer: {
+        taskId,
+        startedAt: Date.now(),
+        beginAt: Date.now(),
+        accumMs: 0,
+        paused: false,
+        occurrenceDate: occurrenceDate ?? null,
+      },
+    }),
 
   pauseTimer: () =>
     set((s) => {

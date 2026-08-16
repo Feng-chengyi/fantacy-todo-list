@@ -66,6 +66,7 @@ export function registerDataIpc(): void {
       color: input.color?.trim() ?? '',
       startTime: input.startTime || undefined,
       endTime: input.endTime || undefined,
+      reminder: input.reminder ?? null,
     }
     data.tasks.push(task)
     store.setData(data)

@@ -23,7 +23,8 @@ export function TopBar() {
   const nextDay = useUiStore((s) => s.nextDay)
   const selectedDate = useUiStore((s) => s.selectedDate)
   const setShowSettings = useUiStore((s) => s.setShowSettings)
-  const setShowPomodoro = useUiStore((s) => s.setShowPomodoro)
+  const setShowSearch = useUiStore((s) => s.setShowSearch)
+  const setShowHelp = useUiStore((s) => s.setShowHelp)
   const openTimerPanel = useUiStore((s) => s.openTimerPanel)
   const timer = useUiStore((s) => s.timer)
   const weekStart = useConfigStore((s) => s.weekStart)
@@ -107,13 +108,19 @@ export function TopBar() {
 
       <button
         className={`text-btn ${timerRunning ? 'timer-running' : ''}`}
-        onClick={openTimerPanel}
+        onClick={() => openTimerPanel()}
         title="正向计时器"
       >
         {timerRunning ? `⏱ ${timerLabel}` : '⏱ 计时'}
       </button>
-      <button className="text-btn" onClick={() => setShowPomodoro(true)} title="番茄钟">
+      <button className="text-btn" onClick={() => openTimerPanel('pomodoro')} title="番茄钟">
         🍅 番茄
+      </button>
+      <button className="text-btn" onClick={() => setShowSearch(true)} title="全局搜索">
+        🔍 搜索
+      </button>
+      <button className="text-btn" onClick={() => setShowHelp(true)} title="使用说明">
+        帮助
       </button>
       <button className="text-btn" onClick={() => setShowSettings(true)}>
         设置

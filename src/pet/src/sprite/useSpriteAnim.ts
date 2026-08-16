@@ -17,14 +17,16 @@ export function useSpriteAnim(
 
   useEffect(() => {
     const meta = animations[current]
-    if (!meta) {
+    // 空值/畸形清单防护：缺动画或缺帧时回退首帧，避免 NaN 定位导致精灵渲染异常
+    if (!meta || !Array.isArray(meta.frames) || meta.frames.length === 0) {
       setFrame(0)
       return
     }
     // 动画切换 / 重播立即回到首帧
     setFrame(meta.frames[0])
 
-    const interval = 1000 / Math.max(1, meta.fps)
+    const fps = Number.isFinite(meta.fps) && meta.fps > 0 ? meta.fps : 4
+    const interval = 1000 / fps
     let idx = 0
     let raf = 0
     let last = performance.now()

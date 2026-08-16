@@ -1,9 +1,11 @@
 /**
  * 精灵渲染舞台：spritesheet 横排帧，background-position 换帧，pixelated 硬边缩放。
- * 联动动画状态由 usePetAnimState 驱动，此处只负责渲染当前帧。
+ * 帧尺寸取自清单 manifest.frame（非硬编码），精灵盒复用 shared/petWindow.computeSpriteBox
+ * （顶部锚定 PET_WINDOW_PAD.top、水平居中）。联动动画状态由 usePetAnimState 驱动。
  */
 import type { PetCharacterId } from '../../../shared/types'
-import { PET_ASSETS, PET_FRAME_H, PET_FRAME_W, type PetAnim } from './petAssets'
+import { computeSpriteBox } from '../../../shared/petWindow'
+import { getPetAssets, type PetAnim } from './petAssets'
 import { useSpriteAnim } from './useSpriteAnim'
 
 interface Props {
@@ -18,12 +20,21 @@ interface Props {
 }
 
 export function SpritePetStage({ characterId, scale, anim, restartKey, onAnimFinish }: Props) {
-  const { sheet, manifest } = PET_ASSETS[characterId]
-  const frame = useSpriteAnim(manifest.animations, anim, restartKey, onAnimFinish)
+  // 空值防护：未知角色回退到默认泡泡猫（bubcat 键必然存在）。自定义 id 在宠物包
+  // 加载完成前会短暂走此回落，loadCustomPets 完成后随上层重渲染自动切换为自定义角色。
+  // getPetAssets() 每次渲染同步读当前注册表（内置 + 运行时合并的自定义宠物）。
+  const { sheet, manifest } = getPetAssets()[characterId] ?? getPetAssets().bubcat
+  // 动画回落：清单缺当前动画定义时回落 idle（自定义包适配层已补齐七键，此处纯兜底）
+  const activeAnim: PetAnim = manifest.animations[anim] ? anim : 'idle'
+  const frame = useSpriteAnim(manifest.animations, activeAnim, restartKey, onAnimFinish)
   const frameCount = manifest.spritesheet.frameCount
 
-  const w = PET_FRAME_W * scale
-  const h = PET_FRAME_H * scale
+  // 帧尺寸取自 manifest（内置 192x208，自定义包校验同规格，此处不硬编码）
+  const frameW = manifest.frame.width
+  const frameH = manifest.frame.height
+  const w = Math.round(frameW * scale)
+  const h = Math.round(frameH * scale)
+  const box = computeSpriteBox(frameW, frameH, scale, window.innerWidth)
 
   return (
     <div
@@ -31,8 +42,8 @@ export function SpritePetStage({ characterId, scale, anim, restartKey, onAnimFin
       style={{
         width: w,
         height: h,
-        left: (window.innerWidth - w) / 2,
-        top: (window.innerHeight - h) / 2,
+        left: box.left,
+        top: box.top,
         backgroundImage: `url(${sheet})`,
         backgroundSize: `${w * frameCount}px ${h}px`,
         backgroundPosition: `${-frame * w}px 0`,

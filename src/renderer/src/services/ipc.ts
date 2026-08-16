@@ -15,8 +15,14 @@ import type {
   MainPanel,
   OverrideAction,
   PetAnimNotice,
+  PetPackEntry,
+  PetPackExportResult,
+  PetPackImportResult,
+  PetPackManifest,
+  PetPackMeta,
   PomodoroState,
   RepeatOverride,
+  ShortcutAction,
   Task,
   TaskStatus,
   TimerAssetKind,
@@ -101,6 +107,11 @@ export function onDataChanged(cb: () => void): () => void {
   return window.api.onDataChanged(cb)
 }
 
+/** 订阅主进程推送的全局快捷键动作（newTask / openTimer / openSearch） */
+export function onShortcut(cb: (action: ShortcutAction) => void): () => void {
+  return window.api.onShortcut(cb)
+}
+
 export function getConfig(): Promise<AppConfig> {
   return window.api.getConfig()
 }
@@ -124,6 +135,35 @@ export function notifyPomodoro(state: PomodoroState): Promise<void> {
 /** 通知桌宠播放联动动画（timing / finishing / jumping） */
 export function notifyPetAnim(notice: PetAnimNotice): Promise<void> {
   return window.api.notifyPetAnim(notice)
+}
+
+/** 宠物包：列出已安装自定义宠物（含 spritesheet data URL） */
+export function petPackList(): Promise<PetPackEntry[]> {
+  return window.api.petPackList()
+}
+
+/** 宠物包：保存（spritesheetBase64 不含 data: 前缀） */
+export function petPackSave(
+  manifest: PetPackManifest,
+  spritesheetBase64: string,
+  sourceName?: string,
+): Promise<PetPackMeta> {
+  return window.api.petPackSave(manifest, spritesheetBase64, sourceName)
+}
+
+/** 宠物包：删除已安装自定义宠物 */
+export function petPackDelete(id: string): Promise<void> {
+  return window.api.petPackDelete(id)
+}
+
+/** 宠物包：导出 .petpack 到用户选择路径 */
+export function petPackExport(id: string): Promise<PetPackExportResult> {
+  return window.api.petPackExport(id)
+}
+
+/** 宠物包：从用户选择的 .petpack 导入 */
+export function petPackImport(): Promise<PetPackImportResult> {
+  return window.api.petPackImport()
 }
 
 export function exportData(): Promise<ExportResult> {

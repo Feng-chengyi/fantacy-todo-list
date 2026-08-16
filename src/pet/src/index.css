@@ -214,13 +214,24 @@ body,
   width: 1.4em;
   color: #0a84ff;
 }
+/* 角色子菜单分组小标题（内置 / 自定义） */
+.pet-menu-group {
+  padding: 2px 14px;
+  font-size: 11px;
+  color: #8a8f98;
+}
+/* 禁用占位行（暂无自定义宠物）：置灰且不响应悬停 */
+.pet-menu button:disabled {
+  color: #b3b7bf;
+  cursor: default;
+}
+.pet-menu button:disabled:hover {
+  background: transparent;
+}
 
-/* 气泡 */
+/* 气泡（定位由 PetApp 按实际尺寸 + 屏幕感知偏移注入 inline left/top） */
 .pet-bubble {
   position: fixed;
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
   max-width: 90%;
   padding: 8px 14px;
   border-radius: 14px;

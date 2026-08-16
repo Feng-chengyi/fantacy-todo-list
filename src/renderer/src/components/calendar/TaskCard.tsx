@@ -8,6 +8,7 @@ import { useDraggable } from '@dnd-kit/core'
 import type { CSSProperties, MouseEvent, ReactNode } from 'react'
 import type { Occurrence } from '../../../../shared/types'
 import { taskColor } from '../../../../shared/defaults'
+import { isSameTimerInstance } from '../../../../shared/focus'
 import { formatDurationMinutes } from '../../../../shared/time'
 import { fireConfetti } from '../../lib/confetti'
 import * as api from '../../services/ipc'
@@ -51,7 +52,7 @@ export function TaskCard({ occurrence, conflict = false, variant = 'compact' }: 
   const isRepeat = !!task.repeat
   const done = status === 'done'
   const abandoned = status === 'abandoned'
-  const isTiming = timer?.taskId === task.id
+  const isTiming = !!timer && isSameTimerInstance(timer, task.id, date)
   const isRoomy = variant === 'roomy'
 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -65,9 +66,9 @@ export function TaskCard({ occurrence, conflict = false, variant = 'compact' }: 
     opacity: isDragging ? 0.6 : 1,
   }
 
-  /** 完成时若正在对该任务计时，统一走 commitFocus 落库（含 5 秒下限过滤） */
+  /** 完成时若正在对该任务实例计时，统一走 commitFocus 落库（含 5 秒下限过滤） */
   const recordDuration = (): void => {
-    if (timer?.taskId === task.id) {
+    if (timer && isSameTimerInstance(timer, task.id, date)) {
       void commitFocus()
     }
   }
@@ -96,7 +97,7 @@ export function TaskCard({ occurrence, conflict = false, variant = 'compact' }: 
   const onStartTimer = (e: MouseEvent) => {
     e.stopPropagation()
     // 切换计时统一入口：先提交上一个任务的计时（不丢时长），再开新计时（QA Bug 1）
-    void switchTimer(task.id)
+    void switchTimer(task.id, date)
     // 定向：切到主界面计时器面板并立即开始计时
     openTimerPanel()
   }
@@ -121,7 +122,7 @@ export function TaskCard({ occurrence, conflict = false, variant = 'compact' }: 
   // 正向计时控件（compact 与 roomy 均在标题行右侧展示）
   const timerControls: ReactNode = isTiming ? (
     <>
-      <Stopwatch taskId={task.id} />
+      <Stopwatch taskId={task.id} occurrenceDate={date} />
       <button className="mini-btn timer-btn" onClick={onStopTimer} title="停止计时">
         ⏹
       </button>

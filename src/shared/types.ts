@@ -30,6 +30,12 @@ export interface RepeatRule {
   endCount?: number | null
 }
 
+/** 任务提醒：按天在指定时刻触发（HH:mm，24 小时制） */
+export interface TaskReminder {
+  /** 提醒时间 HH:mm（24 小时制），如 '09:00' */
+  time: string
+}
+
 /** 任务（P0 核心实体） */
 export interface Task {
   id: string
@@ -57,6 +63,8 @@ export interface Task {
   endTime?: string
   /** 正向计时完成实际用时（秒），完成时写入 */
   durationSec?: number
+  /** 任务提醒（缺省/空 = 不提醒） */
+  reminder?: TaskReminder | null
 }
 
 /** 重复实例覆盖（单日独立完成/跳过） */
@@ -90,6 +98,8 @@ export interface FocusSession {
   /** 会话结束（ISO 8601） */
   endedAt: string
   durationSec: number
+  /** 重复任务实例日期 YYYY-MM-DD；自由/非重复计时为 null（重复计时日期隔离） */
+  occurrenceDate?: string | null
 }
 
 /** 习惯（打卡） */
@@ -102,8 +112,10 @@ export interface Habit {
   archived?: boolean
 }
 
-/** 桌宠可选自绘角色 ID */
-export type PetCharacterId = 'bubcat' | 'sprite' | 'bean'
+/** 内置桌宠角色 ID（固定三员） */
+export type BuiltinPetId = 'bubcat' | 'sprite' | 'bean'
+/** 桌宠角色 ID：内置三员 + 用户导入的自定义宠物包 id（放宽为 string） */
+export type PetCharacterId = string
 
 /** 桌宠自绘角色清单项（shared 统一维护） */
 export interface PetCharacterInfo {
@@ -145,6 +157,10 @@ export interface AppConfig {
   timerClockStyle?: 'flip' | 'digital'
   /** 用户自定义励志文案库（每条一行语义，空 = 使用内置文案池） */
   timerQuotes?: string[]
+  /** 新建任务默认提醒时间 HH:mm（缺省 09:00） */
+  reminderDefaultTime?: string
+  /** 提醒是否同时弹系统通知（缺省 true） */
+  reminderSystemNotification?: boolean
 }
 
 /** 业务数据全文（data.json） */
@@ -169,6 +185,7 @@ export interface CreateTaskInput {
   color?: string
   startTime?: string
   endTime?: string
+  reminder?: TaskReminder | null
 }
 
 /** 日历上的一次任务实例（含重复展开结果） */
@@ -260,12 +277,97 @@ export interface PetAnimNotice {
   active?: boolean
 }
 
+/** 宠物包动画键（7 组，与运行时一致） */
+export type PetPackAnim = 'idle' | 'running-right' | 'running-left' | 'waving' | 'jumping' | 'timing' | 'finishing'
+
+/** 宠物包 pet.json 对外格式（Codex 自定义宠物 v2 精简清单） */
+export interface PetPackManifest {
+  formatVersion: 2
+  spec: 'codex-custom-pet-v2'
+  id: string
+  name: string
+  frame: { width: number; height: number }
+  spritesheet: { file: string; layout: 'horizontal'; frameCount: number }
+  animations: Record<PetPackAnim, { frames: number[]; fps: number; loop: boolean }>
+}
+
+/** 宠物包元信息（meta.json） */
+export interface PetPackMeta {
+  id: string
+  name: string
+  /** 来源图片文件名（可选） */
+  sourceName?: string
+  createdAt: string
+}
+
+/** 宠物包清单条目（列表用） */
+export interface PetPackEntry {
+  meta: PetPackMeta
+  /** spritesheet data URL（加载用；列表时可为空） */
+  sheetDataUrl?: string
+  /** pet.json 清单（含动画帧表；桌宠端加载渲染用，可选兼容旧调用方） */
+  manifest?: PetPackManifest
+}
+
+/** 导出宠物包结果（canceled = 用户取消对话框） */
+export interface PetPackExportResult {
+  canceled: boolean
+  path?: string
+  error?: string
+}
+
+/** 导入宠物包结果（校验失败 error 有值且不落盘） */
+export interface PetPackImportResult {
+  ok: boolean
+  meta?: PetPackMeta
+  error?: string
+}
+
 /** 导入备份结果 */
 export interface ImportResult {
   canceled: boolean
   data?: FullData
   config?: AppConfig
   error?: string
+}
+
+/** 计时模式：正向计时 / 番茄钟（统一计时页切换） */
+export type TimerMode = 'stopwatch' | 'pomodoro'
+
+/**
+ * 正向计时器状态（进行中的秒表，不跨端持久化）。
+ * 迁入 shared 供主进程 / 渲染进程 / 桌宠共用。
+ * elapsed = accumMs + (paused ? 0 : now - startedAt)；paused 时 startedAt 无效。
+ */
+export interface TimerState {
+  /** 绑定的任务 ID；空字符串 = 自由计时（未绑定任务） */
+  taskId: string
+  /** 当前段起始毫秒时间戳（Date.now()） */
+  startedAt: number
+  /** 会话最初开始时刻（暂停/继续不重置，用于生成 FocusSession.startedAt） */
+  beginAt: number
+  /** 暂停前累计毫秒 */
+  accumMs: number
+  paused: boolean
+  /** 重复任务的实例日期 YYYY-MM-DD；非重复任务为 null（重复计时日期隔离） */
+  occurrenceDate: string | null
+}
+
+/** 全局快捷键动作（主进程 globalShortcut → 渲染进程 app:shortcut） */
+export type ShortcutAction = 'newTask' | 'openTimer' | 'openSearch'
+
+/** 搜索结果（任务 + 匹配得分，得分越小越靠前） */
+export interface SearchResult {
+  task: Task
+  score: number
+}
+
+/** 显示器工作区矩形（DIP），用于桌宠窗口与浮层的屏幕感知定位 */
+export interface WorkAreaRect {
+  x: number
+  y: number
+  width: number
+  height: number
 }
 
 /**
@@ -305,12 +407,24 @@ export interface RendererApi {
   commitFocusSession(session: FocusSession): Promise<FocusCommitResult>
   /** 通知桌宠播放联动动画（timing / finishing / jumping） */
   notifyPetAnim(notice: PetAnimNotice): Promise<void>
+  /** 宠物包：列出已安装自定义宠物（含 spritesheet data URL） */
+  petPackList(): Promise<PetPackEntry[]>
+  /** 宠物包：保存（spritesheetPng 为 base64 不含 data: 前缀；manifest 经校验） */
+  petPackSave(manifest: PetPackManifest, spritesheetBase64: string, sourceName?: string): Promise<PetPackMeta>
+  /** 宠物包：删除已安装自定义宠物 */
+  petPackDelete(id: string): Promise<void>
+  /** 宠物包：导出 .petpack（zip）到用户选择路径；canceled = 用户取消 */
+  petPackExport(id: string): Promise<PetPackExportResult>
+  /** 宠物包：从用户选择的 .petpack 导入；校验失败返回 error 不落盘 */
+  petPackImport(): Promise<PetPackImportResult>
   minimize(): Promise<void>
   close(): Promise<void>
   /** 订阅主进程推送的「打开面板」请求 */
   onOpenPanel(cb: (panel: MainPanel) => void): () => void
   /** 订阅主进程推送的「数据已变更」通知（触发 store 重载同步） */
   onDataChanged(cb: () => void): () => void
+  /** 订阅主进程推送的全局快捷键动作（newTask / openTimer / openSearch） */
+  onShortcut(cb: (action: ShortcutAction) => void): () => void
 }
 
 /**
@@ -330,6 +444,8 @@ export interface PetRendererApi {
   openPanel(panel: MainPanel): Promise<void>
   /** 完成今日待办（重复任务单日完成走 override） */
   completeTask(taskId: string): Promise<void>
+  /** 宠物包：列出已安装自定义宠物（含 spritesheet data URL，切换角色用） */
+  petPackList(): Promise<PetPackEntry[]>
   quit(): Promise<void>
   onBubble(cb: (text: string) => void): () => void
   onVisibility(cb: (visible: boolean) => void): () => void
@@ -340,4 +456,8 @@ export interface PetRendererApi {
   onTodayTodos(cb: (todos: TodayTodo[]) => void): () => void
   /** 订阅主进程推送的倒数日目标（悬浮浮层数据源） */
   onGoals(cb: (goals: PetGoal[]) => void): () => void
+  /** 上报桌宠所需窗口尺寸（中心锚定 resize，主进程缓存 petSize） */
+  setSize(size: { width: number; height: number }): Promise<void>
+  /** 读取桌宠当前所在显示器工作区（DIP，屏幕感知定位用） */
+  getWorkArea(): Promise<WorkAreaRect>
 }

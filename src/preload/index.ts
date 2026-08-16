@@ -17,9 +17,15 @@ import type {
   MainPanel,
   OverrideAction,
   PetAnimNotice,
+  PetPackEntry,
+  PetPackExportResult,
+  PetPackImportResult,
+  PetPackManifest,
+  PetPackMeta,
   PomodoroState,
   RendererApi,
   RepeatOverride,
+  ShortcutAction,
   Task,
   TaskStatus,
   TimerAssetKind,
@@ -57,6 +63,12 @@ const api: RendererApi = {
   setPetVisible: (visible: boolean): Promise<void> => ipcRenderer.invoke(IPC.petSetVisible, visible),
   notifyPomodoro: (state: PomodoroState): Promise<void> => ipcRenderer.invoke(IPC.petNotifyPomodoro, state),
   notifyPetAnim: (notice: PetAnimNotice): Promise<void> => ipcRenderer.invoke(IPC.petNotifyAnim, notice),
+  petPackList: (): Promise<PetPackEntry[]> => ipcRenderer.invoke(IPC.petPackList),
+  petPackSave: (manifest: PetPackManifest, spritesheetBase64: string, sourceName?: string): Promise<PetPackMeta> =>
+    ipcRenderer.invoke(IPC.petPackSave, manifest, spritesheetBase64, sourceName),
+  petPackDelete: (id: string): Promise<void> => ipcRenderer.invoke(IPC.petPackDelete, id),
+  petPackExport: (id: string): Promise<PetPackExportResult> => ipcRenderer.invoke(IPC.petPackExport, id),
+  petPackImport: (): Promise<PetPackImportResult> => ipcRenderer.invoke(IPC.petPackImport),
   exportData: (): Promise<ExportResult> => ipcRenderer.invoke(IPC.dataExport),
   importData: (): Promise<ImportResult> => ipcRenderer.invoke(IPC.dataImport),
   timerPickAsset: (kind: TimerAssetKind): Promise<TimerAssetPickResult> =>
@@ -76,6 +88,11 @@ const api: RendererApi = {
     const listener = (): void => cb()
     ipcRenderer.on(IPC_MAIN.dataChanged, listener)
     return () => ipcRenderer.removeListener(IPC_MAIN.dataChanged, listener)
+  },
+  onShortcut: (cb: (action: ShortcutAction) => void): (() => void) => {
+    const listener = (_event: IpcRendererEvent, action: ShortcutAction): void => cb(action)
+    ipcRenderer.on(IPC_MAIN.shortcut, listener)
+    return () => ipcRenderer.removeListener(IPC_MAIN.shortcut, listener)
   },
 }
 

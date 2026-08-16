@@ -52,6 +52,11 @@ function validateTask(t: unknown, index: number): string | null {
   if (t.startTime !== undefined && !isString(t.startTime)) return `tasks[${index}].startTime 类型错误`
   if (t.endTime !== undefined && !isString(t.endTime)) return `tasks[${index}].endTime 类型错误`
   if (t.durationSec !== undefined && typeof t.durationSec !== 'number') return `tasks[${index}].durationSec 类型错误`
+  // 任务提醒：旧数据可缺省；存在则必须为 { time: string }
+  if (t.reminder !== undefined && t.reminder !== null) {
+    if (!isRecord(t.reminder)) return `tasks[${index}].reminder 不是对象`
+    if (!isString(t.reminder.time)) return `tasks[${index}].reminder.time 类型错误`
+  }
 
   // 重复规则结构
   if (t.repeat !== undefined && t.repeat !== null) {
@@ -151,6 +156,9 @@ export function validateBackupBundle(json: unknown): ValidateResult {
     if (typeof s.durationSec !== 'number' || s.durationSec < 0) {
       return { ok: false, error: `sessions[${i}].durationSec 类型错误` }
     }
+    if (s.occurrenceDate !== undefined && !isStringOrNull(s.occurrenceDate)) {
+      return { ok: false, error: `sessions[${i}].occurrenceDate 类型错误` }
+    }
   }
 
   if (!isRecord(json.config)) return { ok: false, error: 'config 缺失或类型错误' }
@@ -170,9 +178,11 @@ export function validateBackupBundle(json: unknown): ValidateResult {
   if (cfg.pomodoroBreakMinutes !== undefined && typeof cfg.pomodoroBreakMinutes !== 'number') {
     return { ok: false, error: 'config.pomodoroBreakMinutes 类型错误' }
   }
-  // selectedCharacter 为当前字段，旧备份的 selectedModel（Live2D 时代命名）兼容迁移；存在则必须合法
-  if (cfg.selectedCharacter !== undefined && !isPetCharacterId(cfg.selectedCharacter)) {
-    return { ok: false, error: 'config.selectedCharacter 非法' }
+  // selectedCharacter 为当前字段：存在则必须为非空字符串（自定义宠物 id 为任意
+  // normalizePetId 字符串，不再要求内置枚举；桌宠端加载时对未知 id 运行时回落 bubcat）。
+  // 旧备份的 selectedModel（Live2D 时代命名）兼容迁移，仍要求合法内置枚举
+  if (cfg.selectedCharacter !== undefined && (typeof cfg.selectedCharacter !== 'string' || cfg.selectedCharacter === '')) {
+    return { ok: false, error: 'config.selectedCharacter 类型错误' }
   }
   if (cfg.selectedModel !== undefined && !isPetCharacterId(cfg.selectedModel)) {
     return { ok: false, error: 'config.selectedModel 非法' }
@@ -193,6 +203,13 @@ export function validateBackupBundle(json: unknown): ValidateResult {
     if (!Array.isArray(cfg.timerQuotes) || cfg.timerQuotes.some((q) => typeof q !== 'string')) {
       return { ok: false, error: 'config.timerQuotes 类型错误' }
     }
+  }
+  // 提醒相关配置：旧备份可缺省，存在则必须类型正确
+  if (cfg.reminderDefaultTime !== undefined && !isString(cfg.reminderDefaultTime)) {
+    return { ok: false, error: 'config.reminderDefaultTime 类型错误' }
+  }
+  if (cfg.reminderSystemNotification !== undefined && typeof cfg.reminderSystemNotification !== 'boolean') {
+    return { ok: false, error: 'config.reminderSystemNotification 类型错误' }
   }
 
   // 内联计时器资产（背景图 / BGM data URL）：旧备份可缺省，存在则必须合法

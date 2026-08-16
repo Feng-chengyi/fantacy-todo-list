@@ -123,6 +123,7 @@ class Store {
         ...t,
         category: typeof t.category === 'string' ? t.category : '',
         color: typeof t.color === 'string' ? t.color : '',
+        reminder: t.reminder ?? null,
       })),
       overrides: Array.isArray(data.overrides) ? data.overrides : [],
       goals: goals.map((g) => ({

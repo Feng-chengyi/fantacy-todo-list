@@ -1,6 +1,8 @@
 node_modules/
 out/
 dist/
+dist-2.1.0/
+electron.vite.config.*.mjs
 *.log
 .DS_Store
 *.tsbuildinfo

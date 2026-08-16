@@ -7,7 +7,7 @@
  * 打勾按钮独立处理（stopPropagation），不干扰桌宠拖拽 / 滚轮。
  */
 import { useState } from 'react'
-import type { CSSProperties, MouseEvent } from 'react'
+import type { CSSProperties, MouseEvent, Ref } from 'react'
 import type { PetGoal, TodayTodo } from '../../shared/types'
 
 const MAX_ITEMS = 6
@@ -16,8 +16,10 @@ const MAX_GOALS = 2
 interface Props {
   todos: TodayTodo[]
   goals: PetGoal[]
-  /** 浮层定位（由 PetApp 依据模型热区计算） */
+  /** 浮层定位（由 PetApp 依据模型热区计算 + 屏幕感知偏移） */
   style?: CSSProperties
+  /** 浮层根节点引用（PetApp 测量尺寸用） */
+  rootRef?: Ref<HTMLDivElement>
   onEnter: () => void
   onLeave: () => void
   /** 完成一项后通知桌宠播放庆祝动作 */
@@ -32,7 +34,7 @@ function goalLabel(goal: PetGoal): string {
   return `『${goal.title}』已过 ${-d} 天`
 }
 
-export function TodayOverlay({ todos, goals, style, onEnter, onLeave, onComplete }: Props) {
+export function TodayOverlay({ todos, goals, style, rootRef, onEnter, onLeave, onComplete }: Props) {
   const visible = todos.slice(0, MAX_ITEMS)
   const extra = todos.length - visible.length
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set())
@@ -53,6 +55,7 @@ export function TodayOverlay({ todos, goals, style, onEnter, onLeave, onComplete
 
   return (
     <div
+      ref={rootRef}
       className="today-overlay"
       style={style}
       onMouseEnter={() => {

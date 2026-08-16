@@ -5,7 +5,10 @@ import { app, BrowserWindow } from 'electron'
 import { registerDataIpc } from './ipc'
 import { registerPetIpc } from './pet-ipc'
 import { registerBackupIpc } from './backup'
+import { registerPetPackIpc } from './pet-pack'
 import { registerTimerAssetsIpc } from './timer-assets'
+import { startReminderScheduler, stopReminderScheduler } from './reminder'
+import { registerShortcuts, unregisterShortcuts } from './shortcuts'
 import { store } from './store'
 import { createMainWindow, createPetWindow, getMainWindow, setQuitting } from './windows'
 import { createTray } from './tray'
@@ -22,6 +25,7 @@ if (!gotLock) {
     registerDataIpc()
     registerPetIpc()
     registerBackupIpc()
+    registerPetPackIpc()
     registerTimerAssetsIpc()
     createMainWindow()
     const petWin = createPetWindow()
@@ -50,6 +54,9 @@ if (!gotLock) {
         pushTodayTodos()
         pushGoals()
       }, 250)
+      // 桌宠就绪后启动提醒调度器与全局快捷键
+      startReminderScheduler()
+      registerShortcuts()
     })
 
     app.on('activate', () => {
@@ -68,6 +75,9 @@ if (!gotLock) {
 
   app.on('before-quit', () => {
     setQuitting(true)
+    // 退出前停止提醒调度器、注销全局快捷键
+    stopReminderScheduler()
+    unregisterShortcuts()
     // 退出前把防抖中的 config 落盘，避免丢位置/缩放
     store.flushConfig()
   })

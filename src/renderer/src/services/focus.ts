@@ -23,6 +23,7 @@ export async function recordSession(session: {
   startedAt: string
   endedAt: string
   durationSec: number
+  occurrenceDate?: string | null
 }): Promise<void> {
   if (!shouldRecordFocus(session.durationSec)) return
   const { task } = await api.commitFocusSession(session)
@@ -51,6 +52,7 @@ export async function commitFocus(): Promise<boolean> {
     startedAt: new Date(timer.beginAt).toISOString(),
     endedAt: new Date().toISOString(),
     durationSec: seconds,
+    occurrenceDate: timer.occurrenceDate ?? null,
   })
   stopTimer()
   void api.notifyPetAnim({ anim: 'timing', active: false })
@@ -60,9 +62,10 @@ export async function commitFocus(): Promise<boolean> {
 /**
  * 切换计时的唯一入口：先提交上一个任务的计时（不丢时长），再开始新计时。
  * TaskCard ▶ / 编辑弹窗「开始计时」/ 计时面板「开始计时」均使用。
+ * occurrenceDate：重复任务的实例日期（日期隔离）；非重复任务传 null。
  */
-export async function switchTimer(taskId: string): Promise<void> {
+export async function switchTimer(taskId: string, occurrenceDate: string | null = null): Promise<void> {
   await commitFocus()
-  useUiStore.getState().startTimer(taskId)
+  useUiStore.getState().startTimer(taskId, occurrenceDate)
   void api.notifyPetAnim({ anim: 'timing', active: true })
 }

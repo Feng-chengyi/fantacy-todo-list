@@ -8,9 +8,11 @@ import type {
   MainPanel,
   PetAnimNotice,
   PetGoal,
+  PetPackEntry,
   PetRendererApi,
   PomodoroState,
   TodayTodo,
+  WorkAreaRect,
 } from '../shared/types'
 
 const petApi: PetRendererApi = {
@@ -20,9 +22,12 @@ const petApi: PetRendererApi = {
   endDrag: (): Promise<void> => ipcRenderer.invoke(IPC.petEndDrag),
   setVisible: (visible: boolean): Promise<void> => ipcRenderer.invoke(IPC.petSetVisible, visible),
   setIgnoreMouse: (ignore: boolean): Promise<void> => ipcRenderer.invoke(IPC.petSetIgnoreMouse, ignore),
+  setSize: (size: { width: number; height: number }): Promise<void> => ipcRenderer.invoke(IPC.petSetSize, size),
+  getWorkArea: (): Promise<WorkAreaRect> => ipcRenderer.invoke(IPC.petGetWorkArea),
   focusMain: (): Promise<void> => ipcRenderer.invoke(IPC.windowFocusMain),
   openPanel: (panel: MainPanel): Promise<void> => ipcRenderer.invoke(IPC.windowOpenPanel, panel),
   completeTask: (taskId: string): Promise<void> => ipcRenderer.invoke(IPC.petCompleteTask, taskId),
+  petPackList: (): Promise<PetPackEntry[]> => ipcRenderer.invoke(IPC.petPackList),
   quit: (): Promise<void> => ipcRenderer.invoke(IPC.windowClose),
   onBubble: (cb: (text: string) => void): (() => void) => {
     const listener = (_event: IpcRendererEvent, text: string): void => cb(text)

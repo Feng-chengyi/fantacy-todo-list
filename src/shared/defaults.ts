@@ -1,7 +1,7 @@
 /**
  * 默认值与枚举映射 —— 数据文件首次初始化时写入的默认内容。
  */
-import type { AppConfig, FullData, PetCharacterId, PetCharacterInfo, Priority, Task } from './types'
+import type { AppConfig, FullData, PetCharacterId, PetCharacterInfo, Priority, ShortcutAction, Task } from './types'
 
 /** 数据格式版本号（data.json / 备份文件共用），导入时校验兼容性 */
 export const DATA_VERSION = 1
@@ -25,7 +25,16 @@ export const DEFAULT_CONFIG: AppConfig = {
   timerDim: 0.35,
   timerClockStyle: 'digital',
   timerQuotes: [],
+  reminderDefaultTime: '09:00',
+  reminderSystemNotification: true,
 }
+
+/** 全局快捷键默认绑定（Electron accelerator → 动作，主进程注册用） */
+export const DEFAULT_SHORTCUTS: ReadonlyArray<{ action: ShortcutAction; accelerator: string }> = [
+  { action: 'newTask', accelerator: 'CommandOrControl+Shift+N' },
+  { action: 'openTimer', accelerator: 'CommandOrControl+Shift+T' },
+  { action: 'openSearch', accelerator: 'CommandOrControl+Shift+K' },
+]
 
 /** 专注记录下限（秒）：低于该时长的计时不计入任务用时与统计 */
 export const MIN_FOCUS_RECORD_SEC = 5
@@ -55,8 +64,8 @@ export const DEFAULT_TIMER_QUOTES: string[] = [
 ]
 
 /**
- * 桌宠可选自绘角色清单（Codex 风格，纯 2D SVG 自绘，
- * 与 src/pet/src/procedural/characters.tsx 一一对应）。
+ * 桌宠可选自绘角色清单（Codex 风格，精灵帧动画，
+ * 与 src/pet/src/sprite/petAssets.ts 的 PET_ASSETS 一一对应）。
  */
 export const PET_CHARACTERS: PetCharacterInfo[] = [
   { id: 'bubcat', name: 'Codex' },
@@ -69,17 +78,25 @@ export function getPetCharacter(id: PetCharacterId | string | undefined): PetCha
   return PET_CHARACTERS.find((m) => m.id === id) ?? PET_CHARACTERS[0]
 }
 
-/** 判断一个值是否为合法的角色 ID（用于旧配置文件缺失字段的兜底） */
-export function isPetCharacterId(value: unknown): value is PetCharacterId {
+/** 判断一个值是否为内置角色 ID（bubcat / sprite / bean，用于旧配置字段兜底与迁移） */
+export function isBuiltinPetId(value: unknown): value is PetCharacterId {
   return PET_CHARACTERS.some((m) => m.id === value)
+}
+
+/** 兼容别名（历史命名，存量引用较多）：是否为内置角色 ID，委托 isBuiltinPetId */
+export function isPetCharacterId(value: unknown): value is PetCharacterId {
+  return isBuiltinPetId(value)
 }
 
 /**
  * 合并磁盘/备份读出的配置到完整 AppConfig（store.init 与备份导入共用）：
  * - 以 DEFAULT_CONFIG 兜底全部字段（含历史版本新增的可选字段）
  * - petPosition 逐字段合并
- * - 旧字段 selectedModel（Live2D 时代命名）迁移为 selectedCharacter（QA O8）；
- *   新字段优先，非法值回退默认
+ * - selectedCharacter：非空字符串一律放行（内置 id 或用户导入的自定义宠物 id——
+ *   自定义 id 为任意 normalizePetId 字符串，无法与拼错的内置名区分，故不做枚举
+ *   校验；桌宠端加载时若该 id 不在资产注册表，运行时回落 bubcat 兜底）；
+ *   仅 undefined / 空串时回落——优先迁移旧字段 selectedModel（Live2D 时代命名，
+ *   仅内置 id 视为合法，QA O8），否则用默认值
  */
 export function mergeConfig(loaded: unknown): AppConfig {
   const raw = (typeof loaded === 'object' && loaded !== null ? loaded : {}) as Record<string, unknown>
@@ -88,9 +105,9 @@ export function mergeConfig(loaded: unknown): AppConfig {
     ...DEFAULT_CONFIG.petPosition,
     ...((raw.petPosition as { x?: number; y?: number }) ?? {}),
   }
-  if (!isPetCharacterId(merged.selectedCharacter)) {
-    // 旧配置仅存 selectedModel：合法则迁移，否则回退默认
-    merged.selectedCharacter = isPetCharacterId(raw.selectedModel)
+  if (typeof merged.selectedCharacter !== 'string' || merged.selectedCharacter === '') {
+    // 旧配置仅存 selectedModel：合法内置 id 则迁移，否则回退默认
+    merged.selectedCharacter = isBuiltinPetId(raw.selectedModel)
       ? (raw.selectedModel as PetCharacterId)
       : DEFAULT_CONFIG.selectedCharacter
   }

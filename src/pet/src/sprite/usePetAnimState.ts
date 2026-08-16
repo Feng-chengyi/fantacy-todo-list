@@ -60,8 +60,8 @@ export function usePetAnimState(): PetAnimController {
     [clearWaveTimer],
   )
 
-  // 卸载清理挥手定时器
-  useEffect(() => clearWaveTimer, [clearWaveTimer])
+  // 卸载清理挥手定时器（返回清理函数，避免旧写法把 clearWaveTimer 当 effect 体、卸载不清理）
+  useEffect(() => () => clearWaveTimer(), [clearWaveTimer])
 
   const setTiming = useCallback((on: boolean) => setTimingState(on), [])
   const setRunning = useCallback((dir: 'right' | 'left' | null) => setRunningState(dir), [])

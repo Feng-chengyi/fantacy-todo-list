@@ -8,11 +8,24 @@
  * - selectTimerCandidates：计时面板候选任务（全部 pending，按日期升序、收集箱殿后）
  */
 import { MIN_FOCUS_RECORD_SEC } from './defaults'
-import type { FocusSession, FullData, Task } from './types'
+import type { FocusSession, FullData, Task, TimerState } from './types'
 
 /** 时长是否达到专注记录下限（≥ 下限才计入统计） */
 export function shouldRecordFocus(elapsedSec: number): boolean {
   return elapsedSec >= MIN_FOCUS_RECORD_SEC
+}
+
+/** 计算当前已计时的毫秒数（纯函数，供各处展示复用） */
+export function timerElapsedMs(t: TimerState): number {
+  return t.accumMs + (t.paused ? 0 : Date.now() - t.startedAt)
+}
+
+/**
+ * 判断某计时实例是否属于「指定任务 + 指定日期」（重复计时日期隔离用）。
+ * 非重复任务 occurrenceDate 为 null，与 date=null 等价比较。
+ */
+export function isSameTimerInstance(timer: TimerState, taskId: string, date: string | null): boolean {
+  return timer.taskId === taskId && (timer.occurrenceDate ?? null) === (date ?? null)
 }
 
 /**
@@ -42,6 +55,7 @@ export function buildPomodoroSession(totalSeconds: number, endedAtMs: number): F
     startedAt: new Date(startedAtMs).toISOString(),
     endedAt: new Date(endedAtMs).toISOString(),
     durationSec: totalSeconds,
+    occurrenceDate: null,
   }
 }
 

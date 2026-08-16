@@ -119,10 +119,21 @@ describe('validateBackupBundle', () => {
     expect(validateBackupBundle(b).ok).toBe(false)
   })
 
-  it('selectedCharacter 非法枚举失败', () => {
-    const b = validBundle()
-    ;(b.config as unknown as Record<string, unknown>).selectedCharacter = 'miku'
-    expect(validateBackupBundle(b).ok).toBe(false)
+  it('selectedCharacter 空串 / 非字符串失败，自定义 id 通过且透传', () => {
+    const empty = validBundle()
+    ;(empty.config as unknown as Record<string, unknown>).selectedCharacter = ''
+    expect(validateBackupBundle(empty).ok).toBe(false)
+
+    const notStr = validBundle()
+    ;(notStr.config as unknown as Record<string, unknown>).selectedCharacter = 123
+    expect(validateBackupBundle(notStr).ok).toBe(false)
+
+    // 自定义宠物 id（任意非空字符串）兼容：通过校验且导入后原样透传
+    const custom = validBundle()
+    ;(custom.config as unknown as Record<string, unknown>).selectedCharacter = '我的猫猫'
+    const res = validateBackupBundle(custom)
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.config.selectedCharacter).toBe('我的猫猫')
   })
 
   it('新增角色 bubcat/sprite/bean 通过 selectedCharacter 校验', () => {

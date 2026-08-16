@@ -2,6 +2,7 @@
  * 主窗口顶层布局：TopBar + (Sidebar + 主视图) + 各类弹层。
  */
 import { useCallback, useEffect } from 'react'
+import { todayStr } from '../../shared/date'
 import { useConfigStore } from './stores/configStore'
 import { useTaskStore } from './stores/taskStore'
 import { useHabitStore } from './stores/habitStore'
@@ -10,6 +11,7 @@ import { useUiStore } from './stores/uiStore'
 import { TopBar } from './components/layout/TopBar'
 import { Sidebar } from './components/layout/Sidebar'
 import { SettingsPanel } from './components/layout/SettingsPanel'
+import { PetMakerPanel } from './components/petmaker/PetMakerPanel'
 import { MonthCalendar } from './components/calendar/MonthCalendar'
 import { WeekView } from './components/calendar/WeekView'
 import { DayView } from './components/calendar/DayView'
@@ -17,11 +19,12 @@ import { ListView } from './components/calendar/ListView'
 import { InboxList } from './components/inbox/InboxList'
 import { TaskEditorModal } from './components/task/TaskEditorModal'
 import { TaskContextMenu } from './components/task/TaskContextMenu'
-import { PomodoroTimer } from './components/pomodoro/PomodoroTimer'
 import { StatsPanel } from './components/stats/StatsPanel'
 import { HabitPanel } from './components/habit/HabitPanel'
 import { CountdownPanel } from './components/goals/CountdownPanel'
 import { TimerPanel } from './components/timer/TimerPanel'
+import { GlobalSearch } from './components/search/GlobalSearch'
+import { HelpPanel } from './components/help/HelpPanel'
 import * as ipc from './services/ipc'
 
 export default function App(): JSX.Element {
@@ -31,6 +34,7 @@ export default function App(): JSX.Element {
   const showHabits = useUiStore((s) => s.showHabits)
   const showGoals = useUiStore((s) => s.showGoals)
   const showTimer = useUiStore((s) => s.showTimer)
+  const showPetMaker = useUiStore((s) => s.showPetMaker)
   const view = useUiStore((s) => s.view)
 
   // 一次 loadData 往返后由三个 store 分发共用，替代原先三路各自 loadData（QA O3）
@@ -63,7 +67,7 @@ export default function App(): JSX.Element {
       ui.setShowHabits(false)
       ui.setShowGoals(false)
       ui.setShowSettings(false)
-      ui.setShowPomodoro(false)
+      ui.setShowPetMaker(false)
       ui.setShowTimer(false)
       switch (panel) {
         case 'today':
@@ -80,7 +84,7 @@ export default function App(): JSX.Element {
           ui.setShowGoals(true)
           break
         case 'pomodoro':
-          ui.setShowPomodoro(true)
+          ui.openTimerPanel('pomodoro')
           break
         case 'settings':
           ui.setShowSettings(true)
@@ -89,6 +93,16 @@ export default function App(): JSX.Element {
           ui.setShowTimer(true)
           break
       }
+    })
+  }, [])
+
+  // 订阅主进程推送的全局快捷键动作（T05）
+  useEffect(() => {
+    return ipc.onShortcut((action) => {
+      const ui = useUiStore.getState()
+      if (action === 'newTask') ui.openCreate(todayStr())
+      else if (action === 'openTimer') ui.openTimerPanel('stopwatch')
+      else if (action === 'openSearch') ui.setShowSearch(true)
     })
   }, [])
 
@@ -120,9 +134,11 @@ export default function App(): JSX.Element {
         <main className="min-w-0 flex-1 overflow-hidden">{mainView}</main>
       </div>
       <SettingsPanel />
+      {showPetMaker && <PetMakerPanel />}
       <TaskEditorModal />
       <TaskContextMenu />
-      <PomodoroTimer />
+      <GlobalSearch />
+      <HelpPanel />
     </div>
   )
 }

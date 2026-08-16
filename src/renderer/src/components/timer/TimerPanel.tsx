@@ -1,11 +1,11 @@
 /**
- * 正向计时器面板（主视图面板）：
- * - 任务绑定计时：任务卡 ▶ 按钮定向至此并自动开始；也可在面板内选任务/自由计时。
- * - 暂停 / 继续 / 结束；结束统一走 commitFocus（≥5 秒才写入任务用时并记 FocusSession）。
- * - 时钟风格：翻页时钟 / 电子时钟，配置持久化。
- * - 励志文案：内置文案池 + 用户自定义文案库（可编辑、可换一句）。
- * - 客制化：自定义背景图片（遮罩浓度可调）与本地音频 BGM（循环、音量、计时自动播放）。
- *   资产经主进程落盘 userData/assets 并以 data URL 提供加载，重启自动恢复。
+ * 统一计时器面板（主视图面板）：
+ * - 顶部「正向计时 / 番茄钟」两模式切换（uiStore.timerMode）。
+ * - 翻页/电子时钟、背景图、BGM、励志文案、遮罩、「返回日历」两模式共用，仅显示数字来源不同。
+ * - 正向计时：任务绑定计时（任务卡 ▶ 定向至此自动开始）、暂停/继续/结束（结束走 commitFocus）。
+ * - 番茄钟：读 pomodoroStore（status/phase/remaining/total/start/pause/reset/skip/init），
+ *   挂载时 init(focus, break)，渲染阶段标签 + 进度条 + 开始/暂停/重置/跳过；不显示「计时对象」下拉。
+ * - BGM 自动播放监听统一「运行中」信号（正向 = 未暂停进行中；番茄 = status running）。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_TIMER_QUOTES } from '../../../../shared/defaults'
@@ -15,21 +15,38 @@ import { selectTimerCandidates, shouldAutoplayBgm } from '../../../../shared/foc
 import * as api from '../../services/ipc'
 import { commitFocus, switchTimer } from '../../services/focus'
 import { useConfigStore } from '../../stores/configStore'
+import { usePomodoroStore } from '../../stores/pomodoroStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { timerElapsedMs, useUiStore } from '../../stores/uiStore'
 import { FlipClock } from './FlipClock'
 
 export function TimerPanel() {
   const timer = useUiStore((s) => s.timer)
+  const timerMode = useUiStore((s) => s.timerMode)
+  const setTimerMode = useUiStore((s) => s.setTimerMode)
   const pauseTimer = useUiStore((s) => s.pauseTimer)
   const resumeTimer = useUiStore((s) => s.resumeTimer)
   const setShowTimer = useUiStore((s) => s.setShowTimer)
   const tasks = useTaskStore((s) => s.tasks)
+
+  // 番茄钟 store
+  const pomodoroStatus = usePomodoroStore((s) => s.status)
+  const pomodoroPhase = usePomodoroStore((s) => s.phase)
+  const pomodoroRemainingSeconds = usePomodoroStore((s) => s.remainingSeconds)
+  const pomodoroTotalSeconds = usePomodoroStore((s) => s.totalSeconds)
+  const pomodoroStart = usePomodoroStore((s) => s.start)
+  const pomodoroPause = usePomodoroStore((s) => s.pause)
+  const pomodoroReset = usePomodoroStore((s) => s.reset)
+  const pomodoroSkip = usePomodoroStore((s) => s.skip)
+  const pomodoroInit = usePomodoroStore((s) => s.init)
+
   const timerBgmVolume = useConfigStore((s) => s.timerBgmVolume ?? 0.6)
   const timerBgmAutoplay = useConfigStore((s) => s.timerBgmAutoplay === true)
   const timerDim = useConfigStore((s) => s.timerDim ?? 0.35)
   const timerClockStyle = useConfigStore((s) => s.timerClockStyle ?? 'digital')
   const timerQuotes = useConfigStore((s) => s.timerQuotes ?? [])
+  const focusMinutes = useConfigStore((s) => s.pomodoroFocusMinutes)
+  const breakMinutes = useConfigStore((s) => s.pomodoroBreakMinutes)
   const updateConfig = useConfigStore((s) => s.update)
 
   const [selectedTaskId, setSelectedTaskId] = useState('')
@@ -47,6 +64,10 @@ export function TimerPanel() {
   const candidates = useMemo(() => selectTimerCandidates(tasks), [tasks])
 
   const boundTask = timer?.taskId ? tasks.find((t) => t.id === timer.taskId) : undefined
+  const selectedTask = selectedTaskId ? tasks.find((t) => t.id === selectedTaskId) : undefined
+
+  // 统一「运行中」信号（两模式共用，驱动 BGM 自动播放判定）
+  const running = timerMode === 'pomodoro' ? pomodoroStatus === 'running' : (!!timer && !timer.paused)
 
   // 文案池：自定义库非空则优先，否则内置池
   const quotePool = timerQuotes.length > 0 ? timerQuotes : DEFAULT_TIMER_QUOTES
@@ -65,8 +86,14 @@ export function TimerPanel() {
     }
   }, [])
 
-  // 每秒走时（暂停时冻结）
+  // 番茄钟：配置变化时同步时长（运行中不打断，由 pomodoroStore.init 保证）
   useEffect(() => {
+    pomodoroInit(focusMinutes, breakMinutes)
+  }, [focusMinutes, breakMinutes, pomodoroInit])
+
+  // 正向计时每秒走时（暂停时冻结）；番茄钟模式不启动此 interval（剩余秒数由 store 驱动）
+  useEffect(() => {
+    if (timerMode !== 'stopwatch') return
     if (!timer) {
       setElapsedSec(0)
       return
@@ -76,37 +103,46 @@ export function TimerPanel() {
     if (timer.paused) return
     const id = window.setInterval(tick, 1000)
     return () => window.clearInterval(id)
-  }, [timer])
+  }, [timerMode, timer])
 
   // 音量同步到 <audio>
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = timerBgmVolume
   }, [timerBgmVolume, bgmUrl])
 
-  // 计时开始/恢复时自动播放 BGM：需同时满足「开启自动播放、用户未手动暂停、音乐已加载」（QA O5）
+  // 运行中时自动播放 BGM：需同时满足「开启自动播放、用户未手动暂停、音乐已加载」（QA O5）
   useEffect(() => {
-    if (!timer || timer.paused) return
+    if (!running) return
     const bgmLoaded = !!bgmUrl && !!audioRef.current
     if (shouldAutoplayBgm({ autoplay: timerBgmAutoplay, userPaused: bgmUserPaused, bgmLoaded })) {
       void audioRef.current!.play().catch(() => setBgmPlaying(false))
       setBgmPlaying(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timer?.taskId, timer?.paused === false, bgmUserPaused])
+  }, [running, bgmUserPaused])
 
-  // 计时结束后重置「用户手动暂停」标记：新一轮计时恢复自动播放资格（QA O5）
+  // 正向计时结束后重置「用户手动暂停」标记：新一轮计时恢复自动播放资格（QA O5）
   useEffect(() => {
     if (!timer) setBgmUserPaused(false)
   }, [timer])
 
   const onBegin = (): void => {
-    // 统一切换入口：先提交旧计时（≥5 秒落库），再开新计时（QA Bug 1）
-    void switchTimer(selectedTaskId)
+    // 统一切换入口：先提交旧计时（≥5 秒落库），再开新计时（QA Bug 1）。
+    // 重复任务保持任务级（occurrenceDate=null，避免全实例同步，设计 §7.8）；
+    // 非重复任务用其日期，对齐 TaskCard / ListView / 编辑弹窗的实例识别口径。
+    const occurrenceDate = selectedTask?.repeat ? null : (selectedTask?.date ?? null)
+    void switchTimer(selectedTaskId, occurrenceDate)
   }
 
   const onFinish = (): void => {
     // 统一结束路径：≥5 秒落库（durationSec + FocusSession），不足则忽略
     void commitFocus()
+  }
+
+  const onPomodoroReset = (): void => {
+    pomodoroReset()
+    // 重置后新一轮番茄可恢复 BGM 自动播放资格
+    setBgmUserPaused(false)
   }
 
   const pickAsset = async (kind: 'bg' | 'bgm'): Promise<void> => {
@@ -169,46 +205,86 @@ export function TimerPanel() {
     setQuoteIdx(lines.length > 0 ? Math.floor(Math.random() * lines.length) : 0)
   }
 
+  // 显示数字来源：番茄钟 = 剩余秒（倒计时），正向计时 = 已计时秒（正计时）
+  const displaySeconds = timerMode === 'pomodoro' ? pomodoroRemainingSeconds : elapsedSec
+
+  const pomodoroRunning = pomodoroStatus === 'running'
+  const pomodoroProgress = pomodoroTotalSeconds > 0 ? (pomodoroRemainingSeconds / pomodoroTotalSeconds) * 100 : 0
+  const pomodoroEmoji = pomodoroPhase === 'focus' ? '🍅' : '☕'
+  const pomodoroLabel = pomodoroPhase === 'focus' ? '专注中' : '休息中'
+
   return (
     <div className="timer-panel" style={bgUrl ? { backgroundImage: `url(${bgUrl})` } : undefined}>
       {bgUrl && <div className="timer-panel-dim" style={{ opacity: timerDim }} />}
       <div className="timer-panel-content">
         <div className="timer-panel-head">
-          <h2>正向计时器</h2>
+          <h2>{timerMode === 'pomodoro' ? '番茄钟' : '正向计时器'}</h2>
           <button className="text-btn" onClick={() => setShowTimer(false)}>
             返回日历
           </button>
         </div>
 
-        <div className="timer-task-select">
-          <label>
-            <span style={{ color: 'var(--text-muted)' }}>计时对象</span>
-            <select
-              className="input"
-              value={timer ? timer.taskId : selectedTaskId}
-              disabled={!!timer}
-              onChange={(e) => setSelectedTaskId(e.target.value)}
-            >
-              <option value="">自由计时（不绑定任务）</option>
-              {candidates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.date === null ? '[收集箱] ' : `[${t.date}] `}
-                  {t.title}
-                </option>
-              ))}
-            </select>
-          </label>
+        {/* 模式切换 */}
+        <div className="timer-mode-tabs">
+          <button
+            className={timerMode === 'stopwatch' ? 'active' : ''}
+            onClick={() => setTimerMode('stopwatch')}
+          >
+            正向计时
+          </button>
+          <button
+            className={timerMode === 'pomodoro' ? 'active' : ''}
+            onClick={() => setTimerMode('pomodoro')}
+          >
+            番茄钟
+          </button>
         </div>
 
+        {/* 计时对象下拉：仅正向计时模式 */}
+        {timerMode === 'stopwatch' && (
+          <div className="timer-task-select">
+            <label>
+              <span style={{ color: 'var(--text-muted)' }}>计时对象</span>
+              <select
+                className="input"
+                value={timer ? timer.taskId : selectedTaskId}
+                disabled={!!timer}
+                onChange={(e) => setSelectedTaskId(e.target.value)}
+              >
+                <option value="">自由计时（不绑定任务）</option>
+                {candidates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.date === null ? '[收集箱] ' : `[${t.date}] `}
+                    {t.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+
         {timerClockStyle === 'flip' ? (
-          <FlipClock seconds={elapsedSec} />
+          <FlipClock seconds={displaySeconds} />
         ) : (
-          <div className="timer-display">{formatHms(elapsedSec)}</div>
+          <div className="timer-display">{formatHms(displaySeconds)}</div>
         )}
         <div className="timer-task-title">
-          {timer ? (boundTask ? boundTask.title : '自由计时') : '未开始'}
-          {timer?.paused ? '（已暂停）' : ''}
+          {timerMode === 'pomodoro'
+            ? `${pomodoroEmoji} ${pomodoroLabel}`
+            : timer
+              ? (boundTask ? boundTask.title : '自由计时') + (timer.paused ? '（已暂停）' : '')
+              : '未开始'}
         </div>
+
+        {/* 番茄钟进度条 */}
+        {timerMode === 'pomodoro' && (
+          <div className="progress-track" style={{ background: 'var(--bg)' }}>
+            <div
+              className="progress-fill"
+              style={{ width: `${pomodoroProgress}%`, background: 'var(--accent)' }}
+            />
+          </div>
+        )}
 
         {/* 励志文案区：换一句 / 编辑自定义文案库 */}
         {quote && (
@@ -244,7 +320,25 @@ export function TimerPanel() {
         )}
 
         <div className="timer-controls">
-          {!timer ? (
+          {timerMode === 'pomodoro' ? (
+            <>
+              {pomodoroRunning ? (
+                <button className="primary-btn" onClick={pomodoroPause}>
+                  暂停
+                </button>
+              ) : (
+                <button className="primary-btn" onClick={pomodoroStart}>
+                  开始
+                </button>
+              )}
+              <button className="ghost-btn" onClick={onPomodoroReset}>
+                重置
+              </button>
+              <button className="ghost-btn" onClick={pomodoroSkip}>
+                跳过
+              </button>
+            </>
+          ) : !timer ? (
             <button className="primary-btn" onClick={onBegin}>
               开始计时
             </button>
@@ -268,7 +362,7 @@ export function TimerPanel() {
             </>
           )}
         </div>
-        {timer && timer.taskId && boundTask?.durationSec != null && (
+        {timerMode === 'stopwatch' && timer && timer.taskId && boundTask?.durationSec != null && (
           <div className="timer-accum">
             该任务已累计用时 {Math.round(boundTask.durationSec / 60)} 分钟
           </div>

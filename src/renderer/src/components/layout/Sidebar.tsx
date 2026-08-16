@@ -24,6 +24,7 @@ export function Sidebar() {
   const setShowGoals = useUiStore((s) => s.setShowGoals)
   const showTimer = useUiStore((s) => s.showTimer)
   const setShowTimer = useUiStore((s) => s.setShowTimer)
+  const setShowHelp = useUiStore((s) => s.setShowHelp)
   const timerRunning = useUiStore((s) => s.timer !== null)
   const inboxCount = useTaskStore((s) => s.tasks.filter((t) => t.date === null && t.status !== 'abandoned').length)
 
@@ -99,6 +100,12 @@ export function Sidebar() {
           {f.label}
         </button>
       ))}
+
+      <div className="mt-auto pt-3">
+        <button className="side-item" onClick={() => setShowHelp(true)}>
+          <span>📖 使用说明</span>
+        </button>
+      </div>
     </aside>
   )
 }
