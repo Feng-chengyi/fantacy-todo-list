@@ -4,6 +4,8 @@
 import { create } from 'zustand'
 import type {
   CreateTaskInput,
+  FocusSession,
+  FullData,
   OverrideAction,
   RepeatOverride,
   Task,
@@ -14,7 +16,11 @@ import * as api from '../services/ipc'
 interface TaskState {
   tasks: Task[]
   overrides: RepeatOverride[]
+  /** 专注计时会话记录（统计的权威数据源） */
+  sessions: FocusSession[]
   loaded: boolean
+  /** 应用一份已加载的全量数据（与 loadData 一次往返后由各 store 分发共用，QA O3） */
+  applyData: (data: FullData) => void
   load: () => Promise<void>
   createTask: (input: CreateTaskInput) => Promise<Task>
   updateTask: (id: string, patch: Partial<Task>) => Promise<Task>
@@ -24,16 +30,32 @@ interface TaskState {
   reorderInbox: (orderedIds: string[]) => Promise<void>
   setOverride: (taskId: string, occurrenceDate: string, action: OverrideAction) => Promise<void>
   clearOverride: (taskId: string, occurrenceDate: string) => Promise<void>
+  /** 应用一次专注原子提交的本地回放（main 已落盘，返回更新后的任务） */
+  applyCommit: (task: Task | null, session: FocusSession) => void
 }
 
 export const useTaskStore = create<TaskState>((set) => ({
   tasks: [],
   overrides: [],
+  sessions: [],
   loaded: false,
+
+  applyData: (data) =>
+    set({
+      tasks: data.tasks,
+      overrides: data.overrides,
+      sessions: data.sessions ?? [],
+      loaded: true,
+    }),
 
   load: async () => {
     const data = await api.loadData()
-    set({ tasks: data.tasks, overrides: data.overrides, loaded: true })
+    set({
+      tasks: data.tasks,
+      overrides: data.overrides,
+      sessions: data.sessions ?? [],
+      loaded: true,
+    })
   },
 
   createTask: async (input) => {
@@ -97,4 +119,10 @@ export const useTaskStore = create<TaskState>((set) => ({
       ),
     }))
   },
+
+  applyCommit: (task, session) =>
+    set((s) => ({
+      tasks: task ? s.tasks.map((t) => (t.id === task.id ? task : t)) : s.tasks,
+      sessions: [...s.sessions, session],
+    })),
 }))

@@ -2,8 +2,9 @@
  * 备份文件校验（纯函数，主进程与单测共用）。
  * 校验通过才允许覆盖现有数据；失败绝不改动现有数据。
  */
-import type { AppConfig, FullData } from './types'
-import { DATA_VERSION, isPetModelId } from './defaults'
+import type { AppConfig, FullData, TimerAssetBundle } from './types'
+import { DATA_VERSION, isPetCharacterId, mergeConfig } from './defaults'
+import { normalizeHabit, type HabitInput } from './habit'
 
 const PRIORITIES = ['high', 'medium', 'low']
 const STATUSES = ['pending', 'done', 'abandoned']
@@ -11,7 +12,7 @@ const ACTIONS = ['done', 'skipped']
 const REPEAT_TYPES = ['daily', 'weekly', 'monthly', 'yearly', 'custom']
 
 export type ValidateResult =
-  | { ok: true; data: FullData; config: AppConfig }
+  | { ok: true; data: FullData; config: AppConfig; assets?: TimerAssetBundle }
   | { ok: false; error: string }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -136,6 +137,22 @@ export function validateBackupBundle(json: unknown): ValidateResult {
     if (h.archived !== undefined && typeof h.archived !== 'boolean') return { ok: false, error: `habits[${i}].archived 类型错误` }
   }
 
+  // 新增字段 sessions（专注会话）：旧备份可缺省，存在则必须数组且逐项合法
+  if (json.data.sessions !== undefined && !Array.isArray(json.data.sessions)) {
+    return { ok: false, error: 'data.sessions 不是数组' }
+  }
+  const sessions: unknown[] = Array.isArray(json.data.sessions) ? json.data.sessions : []
+  for (const [i, s] of sessions.entries()) {
+    if (!isRecord(s)) return { ok: false, error: `sessions[${i}] 不是对象` }
+    if (!isString(s.id)) return { ok: false, error: `sessions[${i}].id 类型错误` }
+    if (!isString(s.taskId)) return { ok: false, error: `sessions[${i}].taskId 类型错误` }
+    if (!isString(s.startedAt)) return { ok: false, error: `sessions[${i}].startedAt 类型错误` }
+    if (!isString(s.endedAt)) return { ok: false, error: `sessions[${i}].endedAt 类型错误` }
+    if (typeof s.durationSec !== 'number' || s.durationSec < 0) {
+      return { ok: false, error: `sessions[${i}].durationSec 类型错误` }
+    }
+  }
+
   if (!isRecord(json.config)) return { ok: false, error: 'config 缺失或类型错误' }
   const cfg = json.config
   if (typeof cfg.petVisible !== 'boolean') return { ok: false, error: 'config.petVisible 类型错误' }
@@ -153,8 +170,11 @@ export function validateBackupBundle(json: unknown): ValidateResult {
   if (cfg.pomodoroBreakMinutes !== undefined && typeof cfg.pomodoroBreakMinutes !== 'number') {
     return { ok: false, error: 'config.pomodoroBreakMinutes 类型错误' }
   }
-  // selectedModel 为新增字段，旧备份可缺省（由 store 回填）；存在则必须合法
-  if (cfg.selectedModel !== undefined && !isPetModelId(cfg.selectedModel)) {
+  // selectedCharacter 为当前字段，旧备份的 selectedModel（Live2D 时代命名）兼容迁移；存在则必须合法
+  if (cfg.selectedCharacter !== undefined && !isPetCharacterId(cfg.selectedCharacter)) {
+    return { ok: false, error: 'config.selectedCharacter 非法' }
+  }
+  if (cfg.selectedModel !== undefined && !isPetCharacterId(cfg.selectedModel)) {
     return { ok: false, error: 'config.selectedModel 非法' }
   }
   // 新增配置字段：旧备份可缺省，存在则必须类型正确
@@ -163,6 +183,25 @@ export function validateBackupBundle(json: unknown): ValidateResult {
   }
   if (cfg.noteTruncateLength !== undefined && typeof cfg.noteTruncateLength !== 'number') {
     return { ok: false, error: 'config.noteTruncateLength 类型错误' }
+  }
+  // 计时器时钟风格：旧备份可缺省，存在则必须合法枚举
+  if (cfg.timerClockStyle !== undefined && cfg.timerClockStyle !== 'flip' && cfg.timerClockStyle !== 'digital') {
+    return { ok: false, error: 'config.timerClockStyle 非法' }
+  }
+  // 自定义文案库：旧备份可缺省，存在则必须为字符串数组
+  if (cfg.timerQuotes !== undefined) {
+    if (!Array.isArray(cfg.timerQuotes) || cfg.timerQuotes.some((q) => typeof q !== 'string')) {
+      return { ok: false, error: 'config.timerQuotes 类型错误' }
+    }
+  }
+
+  // 内联计时器资产（背景图 / BGM data URL）：旧备份可缺省，存在则必须合法
+  if (json.assets !== undefined) {
+    if (!isRecord(json.assets)) return { ok: false, error: 'assets 不是对象' }
+    for (const key of ['bg', 'bgm'] as const) {
+      const v = (json.assets as Record<string, unknown>)[key]
+      if (v !== undefined && !isString(v)) return { ok: false, error: `assets.${key} 类型错误` }
+    }
   }
 
   return {
@@ -174,15 +213,16 @@ export function validateBackupBundle(json: unknown): ValidateResult {
         category: typeof (g as Record<string, unknown>).category === 'string' ? (g as Record<string, unknown>).category : '',
         color: typeof (g as Record<string, unknown>).color === 'string' ? (g as Record<string, unknown>).color : '',
       })),
-      habits: (Array.isArray(json.data.habits) ? json.data.habits : []).map((h) => ({
-        ...(h as Record<string, unknown>),
-        archived: (h as Record<string, unknown>).archived === true,
-      })),
+      habits: (Array.isArray(json.data.habits) ? json.data.habits : []).map((h) =>
+        normalizeHabit(h as HabitInput),
+      ),
+      sessions: Array.isArray(json.data.sessions) ? json.data.sessions : [],
     } as unknown as FullData,
-    config: {
+    config: mergeConfig({
       ...json.config,
-      showNotesInCalendar: json.config.showNotesInCalendar ?? true,
-      noteTruncateLength: json.config.noteTruncateLength ?? 30,
-    } as unknown as AppConfig,
-  }
+      selectedCharacter:
+        json.config.selectedCharacter ?? (isPetCharacterId(json.config.selectedModel) ? json.config.selectedModel : undefined),
+    }) as unknown as AppConfig,
+    assets: isRecord(json.assets) ? (json.assets as unknown as TimerAssetBundle) : undefined,
+  } as { ok: true; data: FullData; config: AppConfig; assets?: TimerAssetBundle }
 }

@@ -1,11 +1,14 @@
 /**
  * 番茄钟状态机（renderer 端，zustand + setInterval）。
  * 专注/休息阶段切换时通过 pet:notify-pomodoro 通知桌宠切换陪伴状态。
+ * 专注阶段自然倒数到 0 时记一条 FocusSession（QA O2；手动 skip 不计）。
  * timer 由 store 模块级持有，start 前先清旧 timer 防泄漏；计时独立于 UI 面板。
  */
 import { create } from 'zustand'
+import { buildPomodoroSession } from '../../../shared/focus'
 import type { PomodoroPhase } from '../../../shared/types'
 import * as api from '../services/ipc'
+import { recordSession } from '../services/focus'
 
 export type PomodoroStatus = 'idle' | 'running'
 
@@ -49,6 +52,10 @@ export const usePomodoroStore = create<PomodoroStore>((set, get) => {
       }
       // 阶段结束：自动切换
       if (s.phase === 'focus') {
+        // 专注阶段自然完成 → 记一条自由计时会话（QA O2；skip 手动跳过不计）
+        void recordSession(buildPomodoroSession(s.totalSeconds, Date.now()))
+        // 通知桌宠跳跃庆祝（联动动画 jumping）
+        void api.notifyPetAnim({ anim: 'jumping' })
         const total = s.breakMinutes * 60
         set({ phase: 'break', remainingSeconds: total, totalSeconds: total })
         notify('break', total, total)

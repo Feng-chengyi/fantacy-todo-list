@@ -38,8 +38,6 @@ export function useDragDate(): DragDateHandlers {
   const setDragOverDate = useUiStore((s) => s.setDragOverDate)
   const tasks = useTaskStore((s) => s.tasks)
   const moveTask = useTaskStore((s) => s.moveTask)
-  const setOverride = useTaskStore((s) => s.setOverride)
-  const createTask = useTaskStore((s) => s.createTask)
 
   const onDragOver = (event: DragOverEvent): void => {
     const overId = event.over ? String(event.over.id) : null
@@ -55,24 +53,13 @@ export function useDragDate(): DragDateHandlers {
 
     const parsed = parseTaskDragId(String(event.active.id))
     if (!parsed) return
-    const { taskId, occurrenceDate } = parsed
+    const { taskId } = parsed
     const task = tasks.find((t) => t.id === taskId)
     if (!task) return
 
-    // 重复任务的非 anchor 实例：跳过原实例 + 目标日期创建单次副本（PRD P0-05 单日独立操作）
-    if (task.repeat && occurrenceDate !== task.date) {
-      void setOverride(taskId, occurrenceDate, 'skipped')
-      void createTask({
-        title: task.title,
-        description: task.description ?? '',
-        priority: task.priority,
-        date: targetDate,
-        repeat: null,
-        category: task.category ?? '',
-        color: task.color ?? '',
-      })
-      return
-    }
+    // 统一改期语义：拖拽任意实例（含重复任务）= 该任务整体移动到目标日期。
+    // 重复任务即整个系列改期（anchor 平移，由 taskMove 清空旧单日 overrides），
+    // 不再「跳过原实例 + 新建单次副本」，避免任务越拖越多。
     void moveTask(taskId, targetDate)
   }
 

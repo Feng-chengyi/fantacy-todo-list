@@ -4,6 +4,21 @@
 import { formatLocal, parseLocal } from './date'
 import type { Habit } from './types'
 
+/** 可能缺省 archived 的习惯输入（旧数据 / 新建返回值统一走此口径补全） */
+export type HabitInput = Omit<Habit, 'archived'> & Partial<Pick<Habit, 'archived'>>
+
+/**
+ * 补全习惯字段口径：archived 恒为布尔、checkins 恒为数组。
+ * store.normalizeData 与 main habitCreate 共用，保证创建返回值与磁盘数据一致（QA Bug 5）。
+ */
+export function normalizeHabit(habit: HabitInput): Habit {
+  return {
+    ...habit,
+    archived: habit.archived === true,
+    checkins: Array.isArray(habit.checkins) ? habit.checkins : [],
+  }
+}
+
 /** 某习惯是否在某日期打卡 */
 export function isCheckedOn(habit: Habit, date: string): boolean {
   return habit.checkins.includes(date)

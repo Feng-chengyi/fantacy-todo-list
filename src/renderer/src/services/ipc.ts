@@ -7,15 +7,21 @@ import type {
   CountdownGoal,
   CreateTaskInput,
   ExportResult,
+  FocusCommitResult,
+  FocusSession,
   FullData,
   Habit,
   ImportResult,
   MainPanel,
   OverrideAction,
+  PetAnimNotice,
   PomodoroState,
   RepeatOverride,
   Task,
   TaskStatus,
+  TimerAssetKind,
+  TimerAssetPickResult,
+  TimerAssets,
 } from '../../../shared/types'
 
 export function loadData(): Promise<FullData> {
@@ -115,12 +121,33 @@ export function notifyPomodoro(state: PomodoroState): Promise<void> {
   return window.api.notifyPomodoro(state)
 }
 
+/** 通知桌宠播放联动动画（timing / finishing / jumping） */
+export function notifyPetAnim(notice: PetAnimNotice): Promise<void> {
+  return window.api.notifyPetAnim(notice)
+}
+
 export function exportData(): Promise<ExportResult> {
   return window.api.exportData()
 }
 
 export function importData(): Promise<ImportResult> {
   return window.api.importData()
+}
+
+export function timerPickAsset(kind: TimerAssetKind): Promise<TimerAssetPickResult> {
+  return window.api.timerPickAsset(kind)
+}
+
+export function timerClearAsset(kind: TimerAssetKind): Promise<void> {
+  return window.api.timerClearAsset(kind)
+}
+
+export function timerLoadAssets(): Promise<TimerAssets> {
+  return window.api.timerLoadAssets()
+}
+
+export function commitFocusSession(session: FocusSession): Promise<FocusCommitResult> {
+  return window.api.commitFocusSession(session)
 }
 
 export function minimize(): Promise<void> {

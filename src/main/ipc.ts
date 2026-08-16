@@ -6,10 +6,15 @@ import { ipcMain } from 'electron'
 import { randomUUID } from 'crypto'
 import { store } from './store'
 import { IPC } from '../shared/ipc-channels'
+import { applyFocusCommit } from '../shared/focus'
+import { applyTaskStatus, shiftRepeatOnMove } from '../shared/taskOps'
+import { normalizeHabit } from '../shared/habit'
 import type {
   AppConfig,
   CountdownGoal,
   CreateTaskInput,
+  FocusCommitResult,
+  FocusSession,
   FullData,
   Habit,
   OverrideAction,
@@ -32,6 +37,14 @@ function nextInboxOrder(data: FullData): number {
 
 export function registerDataIpc(): void {
   ipcMain.handle(IPC.dataLoad, (): FullData => store.getData())
+
+  // 专注原子提交：applyFocusCommit 纯函数一次 setData 写入「会话 + 任务用时」，
+  // 避免两条独立 IPC 中途失败造成 durationSec 与 sessions 漂移（QA O1）
+  ipcMain.handle(IPC.focusCommit, (_event, session: FocusSession): FocusCommitResult => {
+    const data = applyFocusCommit(store.getData(), session)
+    store.setData(data)
+    return { task: data.tasks.find((t) => t.id === session.taskId) ?? null }
+  })
 
   ipcMain.handle(IPC.taskCreate, (_event, input: CreateTaskInput): Task => {
     const data = store.getData()
@@ -83,7 +96,9 @@ export function registerDataIpc(): void {
     if (idx === -1) throw new Error(`任务不存在：${payload.id}`)
     const prev = data.tasks[idx]
     const moved: Task = {
-      ...prev,
+      // 重复任务拖动 = 系列整体平移：endDate 随 anchor 平移，否则 anchor 越过 endDate
+      // 后整个系列从日历消失（新位置也不显示），修复「拖出范围后任务全部消失」
+      ...shiftRepeatOnMove(prev, payload.date ?? prev.date ?? ''),
       date: payload.date,
       inboxOrder: payload.date === null ? (prev.inboxOrder ?? nextInboxOrder(data)) : null,
       updatedAt: nowIso(),
@@ -99,13 +114,8 @@ export function registerDataIpc(): void {
     const data = store.getData()
     const idx = data.tasks.findIndex((t) => t.id === payload.id)
     if (idx === -1) throw new Error(`任务不存在：${payload.id}`)
-    const prev = data.tasks[idx]
-    const next: Task = {
-      ...prev,
-      status: payload.status,
-      completedAt: payload.status === 'done' ? nowIso() : (prev.completedAt ?? null),
-      updatedAt: nowIso(),
-    }
+    // completedAt 语义 = 最后一次完成：回到 pending/abandoned 时清空（QA O4）
+    const next = applyTaskStatus(data.tasks[idx], payload.status, nowIso())
     data.tasks[idx] = next
     store.setData(data)
     return next
@@ -187,11 +197,12 @@ export function registerDataIpc(): void {
 
   ipcMain.handle(IPC.habitCreate, (_event, input: { title: string }): Habit => {
     const data = store.getData()
-    const habit: Habit = {
+    // normalizeHabit 统一补全 archived，保证返回值与磁盘口径一致（QA Bug 5）
+    const habit = normalizeHabit({
       id: randomUUID(),
       title: String(input.title ?? '').trim(),
       checkins: [],
-    }
+    })
     data.habits.push(habit)
     store.setData(data)
     return habit

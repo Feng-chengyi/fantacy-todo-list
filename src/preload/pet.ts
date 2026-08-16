@@ -3,12 +3,21 @@
  */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import { IPC, IPC_MAIN } from '../shared/ipc-channels'
-import type { AppConfig, MainPanel, PetGoal, PetRendererApi, PomodoroState, TodayTodo } from '../shared/types'
+import type {
+  AppConfig,
+  MainPanel,
+  PetAnimNotice,
+  PetGoal,
+  PetRendererApi,
+  PomodoroState,
+  TodayTodo,
+} from '../shared/types'
 
 const petApi: PetRendererApi = {
   getConfig: (): Promise<AppConfig> => ipcRenderer.invoke(IPC.configGet),
   setConfig: (patch: Partial<AppConfig>): Promise<AppConfig> => ipcRenderer.invoke(IPC.configSet, patch),
-  moveWindow: (dx: number, dy: number): Promise<void> => ipcRenderer.invoke(IPC.petMoveWindow, { dx, dy }),
+  beginDrag: (): Promise<void> => ipcRenderer.invoke(IPC.petBeginDrag),
+  endDrag: (): Promise<void> => ipcRenderer.invoke(IPC.petEndDrag),
   setVisible: (visible: boolean): Promise<void> => ipcRenderer.invoke(IPC.petSetVisible, visible),
   setIgnoreMouse: (ignore: boolean): Promise<void> => ipcRenderer.invoke(IPC.petSetIgnoreMouse, ignore),
   focusMain: (): Promise<void> => ipcRenderer.invoke(IPC.windowFocusMain),
@@ -29,6 +38,11 @@ const petApi: PetRendererApi = {
     const listener = (_event: IpcRendererEvent, state: PomodoroState): void => cb(state)
     ipcRenderer.on(IPC_MAIN.petPomodoro, listener)
     return () => ipcRenderer.removeListener(IPC_MAIN.petPomodoro, listener)
+  },
+  onAnim: (cb: (notice: PetAnimNotice) => void): (() => void) => {
+    const listener = (_event: IpcRendererEvent, notice: PetAnimNotice): void => cb(notice)
+    ipcRenderer.on(IPC_MAIN.petAnim, listener)
+    return () => ipcRenderer.removeListener(IPC_MAIN.petAnim, listener)
   },
   onTodayTodos: (cb: (todos: TodayTodo[]) => void): (() => void) => {
     const listener = (_event: IpcRendererEvent, todos: TodayTodo[]): void => cb(todos)

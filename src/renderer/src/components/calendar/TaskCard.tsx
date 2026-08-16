@@ -10,9 +10,11 @@ import type { Occurrence } from '../../../../shared/types'
 import { taskColor } from '../../../../shared/defaults'
 import { formatDurationMinutes } from '../../../../shared/time'
 import { fireConfetti } from '../../lib/confetti'
+import * as api from '../../services/ipc'
 import { useConfigStore } from '../../stores/configStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { useUiStore } from '../../stores/uiStore'
+import { commitFocus, switchTimer } from '../../services/focus'
 import { Stopwatch } from '../task/Stopwatch'
 
 /** 备注截断：去多余空白后按长度截断并补「…」 */
@@ -38,14 +40,12 @@ export function TaskCard({ occurrence, conflict = false, variant = 'compact' }: 
   const setStatus = useTaskStore((s) => s.setStatus)
   const setOverride = useTaskStore((s) => s.setOverride)
   const clearOverride = useTaskStore((s) => s.clearOverride)
-  const updateTask = useTaskStore((s) => s.updateTask)
   const confettiEnabled = useConfigStore((s) => s.confettiEnabled)
   const showNotes = useConfigStore((s) => s.showNotesInCalendar)
   const noteTruncateLength = useConfigStore((s) => s.noteTruncateLength)
   const setContextMenu = useUiStore((s) => s.setContextMenu)
   const timer = useUiStore((s) => s.timer)
-  const startTimer = useUiStore((s) => s.startTimer)
-  const stopTimer = useUiStore((s) => s.stopTimer)
+  const openTimerPanel = useUiStore((s) => s.openTimerPanel)
 
   // 重复任务：任何实例（含 anchor 日期）的勾选都走单实例 override（PRD P0-05 单日独立操作）
   const isRepeat = !!task.repeat
@@ -65,12 +65,10 @@ export function TaskCard({ occurrence, conflict = false, variant = 'compact' }: 
     opacity: isDragging ? 0.6 : 1,
   }
 
-  /** 完成时若正在对该任务计时，则把耗时写入 durationSec */
+  /** 完成时若正在对该任务计时，统一走 commitFocus 落库（含 5 秒下限过滤） */
   const recordDuration = (): void => {
     if (timer?.taskId === task.id) {
-      const seconds = Math.max(0, Math.round((Date.now() - timer.startedAt) / 1000))
-      void updateTask(task.id, { durationSec: seconds })
-      stopTimer()
+      void commitFocus()
     }
   }
 
@@ -83,22 +81,30 @@ export function TaskCard({ occurrence, conflict = false, variant = 'compact' }: 
         void setOverride(task.id, date, 'done')
         if (!done && confettiEnabled) fireConfetti()
         recordDuration()
+        void api.notifyPetAnim({ anim: 'finishing' })
       }
     } else {
       void setStatus(task.id, done ? 'pending' : 'done')
       if (!done && confettiEnabled) fireConfetti()
-      if (!done) recordDuration()
+      if (!done) {
+        recordDuration()
+        void api.notifyPetAnim({ anim: 'finishing' })
+      }
     }
   }
 
   const onStartTimer = (e: MouseEvent) => {
     e.stopPropagation()
-    startTimer(task.id)
+    // 切换计时统一入口：先提交上一个任务的计时（不丢时长），再开新计时（QA Bug 1）
+    void switchTimer(task.id)
+    // 定向：切到主界面计时器面板并立即开始计时
+    openTimerPanel()
   }
 
   const onStopTimer = (e: MouseEvent) => {
     e.stopPropagation()
-    stopTimer()
+    // 停止即结束本段计时，统一走 commitFocus（含 5 秒下限过滤）
+    void commitFocus()
   }
 
   const onContextMenu = (e: MouseEvent) => {

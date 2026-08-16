@@ -2,12 +2,14 @@
  * 习惯打卡 store。数据权威源在 main，经 services/ipc 单向同步。
  */
 import { create } from 'zustand'
-import type { Habit } from '../../../shared/types'
+import type { FullData, Habit } from '../../../shared/types'
 import * as api from '../services/ipc'
 
 interface HabitState {
   habits: Habit[]
   loaded: boolean
+  /** 应用一份已加载的全量数据（loadData 一次往返后由各 store 分发共用，QA O3） */
+  applyData: (data: FullData) => void
   load: () => Promise<void>
   create: (title: string) => Promise<Habit>
   remove: (id: string) => Promise<void>
@@ -18,6 +20,8 @@ interface HabitState {
 export const useHabitStore = create<HabitState>((set) => ({
   habits: [],
   loaded: false,
+
+  applyData: (data) => set({ habits: data.habits ?? [], loaded: true }),
 
   load: async () => {
     const data = await api.loadData()

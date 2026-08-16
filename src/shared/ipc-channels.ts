@@ -22,6 +22,8 @@ export const IPC = {
   habitDelete: 'habit:delete',
   habitToggle: 'habit:toggle',
   habitSetArchived: 'habit:setArchived',
+  /** 原子提交一次专注会话（session 追加 + 任务 durationSec 累加，单次落盘） */
+  focusCommit: 'focus:commit',
   configGet: 'config:get',
   configSet: 'config:set',
   dataExport: 'data:export',
@@ -29,10 +31,17 @@ export const IPC = {
   // 桌宠 / 窗口
   petShowBubble: 'pet:show-bubble',
   petSetVisible: 'pet:set-visible',
-  petMoveWindow: 'pet:move-window',
+  petBeginDrag: 'pet:begin-drag',
+  petEndDrag: 'pet:end-drag',
   petSetIgnoreMouse: 'pet:set-ignore-mouse',
   petNotifyPomodoro: 'pet:notify-pomodoro',
   petCompleteTask: 'pet:complete-task',
+  /** 主窗口 → 桌宠：联动动画通知（timing / finishing / jumping） */
+  petNotifyAnim: 'pet:notify-anim',
+  // 计时器资产（背景图 / BGM）
+  timerPickAsset: 'timer:pick-asset',
+  timerClearAsset: 'timer:clear-asset',
+  timerLoadAssets: 'timer:load-assets',
   windowFocusMain: 'window:focus-main',
   windowOpenPanel: 'window:open-panel',
   windowMinimize: 'window:minimize',
@@ -44,6 +53,7 @@ export const IPC_MAIN = {
   petBubble: 'pet:bubble',
   petVisibility: 'pet:visibility',
   petPomodoro: 'pet:pomodoro',
+  petAnim: 'pet:anim',
   petTodayTodos: 'pet:today-todos',
   petGoals: 'pet:goals',
   openPanel: 'window:open-panel-request',

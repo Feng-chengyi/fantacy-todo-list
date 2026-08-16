@@ -9,16 +9,22 @@ import type {
   CountdownGoal,
   CreateTaskInput,
   ExportResult,
+  FocusCommitResult,
+  FocusSession,
   FullData,
   Habit,
   ImportResult,
   MainPanel,
   OverrideAction,
+  PetAnimNotice,
   PomodoroState,
   RendererApi,
   RepeatOverride,
   Task,
   TaskStatus,
+  TimerAssetKind,
+  TimerAssetPickResult,
+  TimerAssets,
 } from '../shared/types'
 
 const api: RendererApi = {
@@ -50,8 +56,15 @@ const api: RendererApi = {
   showBubble: (text: string): Promise<void> => ipcRenderer.invoke(IPC.petShowBubble, text),
   setPetVisible: (visible: boolean): Promise<void> => ipcRenderer.invoke(IPC.petSetVisible, visible),
   notifyPomodoro: (state: PomodoroState): Promise<void> => ipcRenderer.invoke(IPC.petNotifyPomodoro, state),
+  notifyPetAnim: (notice: PetAnimNotice): Promise<void> => ipcRenderer.invoke(IPC.petNotifyAnim, notice),
   exportData: (): Promise<ExportResult> => ipcRenderer.invoke(IPC.dataExport),
   importData: (): Promise<ImportResult> => ipcRenderer.invoke(IPC.dataImport),
+  timerPickAsset: (kind: TimerAssetKind): Promise<TimerAssetPickResult> =>
+    ipcRenderer.invoke(IPC.timerPickAsset, kind),
+  timerClearAsset: (kind: TimerAssetKind): Promise<void> => ipcRenderer.invoke(IPC.timerClearAsset, kind),
+  timerLoadAssets: (): Promise<TimerAssets> => ipcRenderer.invoke(IPC.timerLoadAssets),
+  commitFocusSession: (session: FocusSession): Promise<FocusCommitResult> =>
+    ipcRenderer.invoke(IPC.focusCommit, session),
   minimize: (): Promise<void> => ipcRenderer.invoke(IPC.windowMinimize),
   close: (): Promise<void> => ipcRenderer.invoke(IPC.windowClose),
   onOpenPanel: (cb: (panel: MainPanel) => void): (() => void) => {

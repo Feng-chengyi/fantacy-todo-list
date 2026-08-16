@@ -22,6 +22,9 @@ export function Sidebar() {
   const setShowHabits = useUiStore((s) => s.setShowHabits)
   const showGoals = useUiStore((s) => s.showGoals)
   const setShowGoals = useUiStore((s) => s.setShowGoals)
+  const showTimer = useUiStore((s) => s.showTimer)
+  const setShowTimer = useUiStore((s) => s.setShowTimer)
+  const timerRunning = useUiStore((s) => s.timer !== null)
   const inboxCount = useTaskStore((s) => s.tasks.filter((t) => t.date === null && t.status !== 'abandoned').length)
 
   const closeOthers = (): void => {
@@ -29,6 +32,7 @@ export function Sidebar() {
     setShowStats(false)
     setShowHabits(false)
     setShowGoals(false)
+    setShowTimer(false)
   }
 
   const openInbox = (): void => {
@@ -51,6 +55,11 @@ export function Sidebar() {
     setShowGoals(!showGoals)
   }
 
+  const openTimer = (): void => {
+    closeOthers()
+    setShowTimer(!showTimer)
+  }
+
   return (
     <aside
       className="flex w-48 shrink-0 flex-col gap-1 border-r p-3"
@@ -71,6 +80,11 @@ export function Sidebar() {
 
       <button className={`side-item ${showGoals ? 'active' : ''}`} onClick={openGoals}>
         <span>⏳ 倒数日</span>
+      </button>
+
+      <button className={`side-item ${showTimer ? 'active' : ''}`} onClick={openTimer}>
+        <span>⏱ 计时</span>
+        {timerRunning && <span className="badge">●</span>}
       </button>
 
       <div className="mt-4 mb-1 px-2 text-xs" style={{ color: 'var(--text-muted)' }}>

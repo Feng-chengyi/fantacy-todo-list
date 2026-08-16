@@ -82,8 +82,13 @@ export function InboxList() {
   const allTasks = useTaskStore((s) => s.tasks)
   const reorderInbox = useTaskStore((s) => s.reorderInbox)
   const openCreate = useUiStore((s) => s.openCreate)
+  const filter = useUiStore((s) => s.filter)
 
-  const tasks = useMemo(() => allTasks.filter((t) => t.date === null), [allTasks])
+  // 联动侧栏筛选：all 不过滤，其余仅保留匹配状态的收集箱任务
+  const tasks = useMemo(
+    () => allTasks.filter((t) => t.date === null && (filter === 'all' || t.status === filter)),
+    [allTasks, filter],
+  )
   const inbox = useMemo(
     () => [...tasks].sort((a, b) => (a.inboxOrder ?? 0) - (b.inboxOrder ?? 0)),
     [tasks],

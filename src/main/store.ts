@@ -5,7 +5,8 @@
 import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import { DEFAULT_CONFIG, DEFAULT_DATA } from '../shared/defaults'
+import { DEFAULT_DATA, mergeConfig } from '../shared/defaults'
+import { normalizeHabit } from '../shared/habit'
 import type { AppConfig, FullData } from '../shared/types'
 
 const CONFIG_DEBOUNCE_MS = 200
@@ -32,27 +33,27 @@ class Store {
     this.dataPath = join(this.dir, 'data.json')
     this.configPath = join(this.dir, 'config.json')
     this.data = this.clone(DEFAULT_DATA)
-    this.config = { ...DEFAULT_CONFIG, petPosition: { ...DEFAULT_CONFIG.petPosition } }
+    this.config = mergeConfig({})
   }
 
   /** 初始化：确保目录与文件存在，读取快照到内存 */
   init(): void {
     if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
     this.data = this.normalizeData(this.readJson<FullData>(this.dataPath, DEFAULT_DATA))
-    const loadedConfig = this.readJson<AppConfig>(this.configPath, DEFAULT_CONFIG)
-    this.config = {
-      ...DEFAULT_CONFIG,
-      ...loadedConfig,
-      petPosition: { ...DEFAULT_CONFIG.petPosition, ...(loadedConfig.petPosition ?? {}) },
-    }
-    // 旧版本配置文件缺少 selectedModel 字段时回填默认值，避免桌宠端读到 undefined
-    if (!this.config.selectedModel) this.config.selectedModel = DEFAULT_CONFIG.selectedModel
+    // mergeConfig（shared/defaults）统一处理：默认值兜底、petPosition 逐字段合并、
+    // 旧字段 selectedModel → selectedCharacter 迁移（QA O8）
+    this.config = mergeConfig(this.readJson<unknown>(this.configPath, {}))
     if (!existsSync(this.dataPath)) this.writeData()
     if (!existsSync(this.configPath)) this.writeConfig()
   }
 
   getData(): FullData {
     return this.clone(this.data)
+  }
+
+  /** 资产落盘目录（背景图/BGM 等用户定制文件），调用方负责 mkdir */
+  get assetsDir(): string {
+    return join(this.dir, 'assets')
   }
 
   getConfig(): AppConfig {
@@ -129,10 +130,9 @@ class Store {
         category: typeof g.category === 'string' ? g.category : '',
         color: typeof g.color === 'string' ? g.color : '',
       })),
-      habits: habits.map((h) => ({
-        ...h,
-        archived: h.archived === true,
-      })),
+      habits: habits.map((h) => normalizeHabit(h)),
+      // 专注会话记录：旧 data.json 缺省回填空数组
+      sessions: Array.isArray(data.sessions) ? data.sessions : [],
     }
   }
 

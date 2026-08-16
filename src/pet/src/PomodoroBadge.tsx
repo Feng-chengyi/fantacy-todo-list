@@ -1,16 +1,12 @@
 /**
- * 番茄钟陪伴徽标：🍅 专注 / ☕ 休息（常驻显示，区别于气泡的自动消失）。
+ * 番茄钟陪伴徽标：🍅 专注中 / ☕ 休息中（常驻显示，区别于气泡的自动消失）。
+ * 仅显示阶段文案不显示秒数：pet:notify-pomodoro 只在动作时推送，
+ * 秒数必然是旧值（形似卡死），见 QA Bug 4。
  */
+import { pomodoroPhaseLabel } from '../../shared/pomodoro'
 import type { PomodoroState } from '../../shared/types'
-
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-}
 
 export function PomodoroBadge({ state }: { state: PomodoroState | null }) {
   if (!state || state.phase === 'idle') return null
-  const label = state.phase === 'focus' ? '🍅 专注' : '☕ 休息'
-  return <div className="pomodoro-badge">{`${label} ${formatTime(state.remainingSeconds)}`}</div>
+  return <div className="pomodoro-badge">{pomodoroPhaseLabel(state.phase)}</div>
 }

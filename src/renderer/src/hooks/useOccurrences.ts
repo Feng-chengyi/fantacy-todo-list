@@ -1,5 +1,6 @@
 /**
  * 任务实例计算 hook：单日 / 整月，含重复任务展开与 override 覆盖。
+ * 联动侧栏筛选（all/pending/done/abandoned）：非 all 时仅保留匹配状态的实例。
  */
 import { useMemo } from 'react'
 import { PRIORITY_ORDER } from '../../../shared/defaults'
@@ -12,8 +13,15 @@ import {
   listOccurrencesInRange,
 } from '../../../shared/repeatEngine'
 import { useTaskStore } from '../stores/taskStore'
+import { useUiStore, type TaskFilter } from '../stores/uiStore'
 
 export type OccurrenceSort = 'priority' | 'time'
+
+/** 按侧栏筛选条件判断实例状态是否可见（all 不过滤） */
+function matchesFilter(status: TaskStatus, filter: TaskFilter): boolean {
+  if (filter === 'all') return true
+  return status === filter
+}
 
 function rank(priority: Priority): number {
   return PRIORITY_ORDER[priority]
@@ -39,13 +47,14 @@ function byTimeThenPriority(a: Occurrence, b: Occurrence): number {
   return byPriorityThenCreated(a, b)
 }
 
-/** 某一天的所有任务实例（含重复展开），skipped 已过滤 */
+/** 某一天的所有任务实例（含重复展开），skipped 已过滤，并应用侧栏筛选 */
 export function useOccurrencesForDate(
   date: string,
   sort: OccurrenceSort = 'priority',
 ): Occurrence[] {
   const tasks = useTaskStore((s) => s.tasks)
   const overrides = useTaskStore((s) => s.overrides)
+  const filter = useUiStore((s) => s.filter)
 
   return useMemo(() => {
     const result: Occurrence[] = []
@@ -55,24 +64,27 @@ export function useOccurrencesForDate(
         if (isOccurrenceOnDate(date, task.repeat, task.date)) {
           const status = getOccurrenceStatus(task.id, date, overrides, task.status)
           if (status === 'skipped') continue
+          if (!matchesFilter(status, filter)) continue
           result.push({ task, date, status })
         }
       } else if (task.date === date) {
+        if (!matchesFilter(task.status, filter)) continue
         result.push({ task, date, status: task.status })
       }
     }
     result.sort(sort === 'time' ? byTimeThenPriority : byPriorityThenCreated)
     return result
-  }, [tasks, overrides, date, sort])
+  }, [tasks, overrides, date, sort, filter])
 }
 
-/** 整个月按日期分组的实例映射 */
+/** 整个月按日期分组的实例映射（应用侧栏筛选） */
 export function useOccurrencesForMonth(
   year: number,
   month: number,
 ): Record<string, Occurrence[]> {
   const tasks = useTaskStore((s) => s.tasks)
   const overrides = useTaskStore((s) => s.overrides)
+  const filter = useUiStore((s) => s.filter)
 
   return useMemo(() => {
     const from = startOfMonthStr(year, month)
@@ -85,10 +97,12 @@ export function useOccurrencesForMonth(
         const entries = listOccurrencesInRange(task.repeat, task.date, from, to, overrides, task.status, task.id)
         for (const entry of entries) {
           if (entry.status === 'skipped') continue
+          if (!matchesFilter(entry.status as TaskStatus, filter)) continue
           const list = (map[entry.date] ??= [])
           list.push({ task, date: entry.date, status: entry.status as TaskStatus })
         }
       } else if (task.date >= from && task.date <= to) {
+        if (!matchesFilter(task.status, filter)) continue
         const list = (map[task.date] ??= [])
         list.push({ task, date: task.date, status: task.status })
       }
@@ -96,5 +110,5 @@ export function useOccurrencesForMonth(
 
     for (const key of Object.keys(map)) map[key].sort(byPriorityThenCreated)
     return map
-  }, [tasks, overrides, year, month])
+  }, [tasks, overrides, year, month, filter])
 }

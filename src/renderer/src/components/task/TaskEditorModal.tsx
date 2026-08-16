@@ -9,6 +9,7 @@ import { hasOverlap } from '../../../../shared/conflict'
 import { formatDurationMinutes, timeToMinutes } from '../../../../shared/time'
 import { useTaskStore } from '../../stores/taskStore'
 import { useUiStore } from '../../stores/uiStore'
+import { commitFocus, switchTimer } from '../../services/focus'
 import { RepeatRuleEditor } from './RepeatRuleEditor'
 import { Stopwatch } from './Stopwatch'
 
@@ -18,11 +19,11 @@ export function TaskEditorModal() {
   const editor = useUiStore((s) => s.editor)
   const closeEditor = useUiStore((s) => s.closeEditor)
   const timer = useUiStore((s) => s.timer)
-  const startTimer = useUiStore((s) => s.startTimer)
-  const stopTimer = useUiStore((s) => s.stopTimer)
+  const openTimerPanel = useUiStore((s) => s.openTimerPanel)
   const createTask = useTaskStore((s) => s.createTask)
   const updateTask = useTaskStore((s) => s.updateTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
+  const moveTask = useTaskStore((s) => s.moveTask)
   const tasks = useTaskStore((s) => s.tasks)
 
   const [title, setTitle] = useState('')
@@ -70,9 +71,12 @@ export function TaskEditorModal() {
     const finalDate = inInbox ? null : date
     const timePatch = { startTime: startTime || undefined, endTime: endTime || undefined }
     if (isEdit) {
+      // 日期变化统一走 moveTask（与拖拽改期一致：清空重复任务旧 overrides、收集箱排序）
+      if (finalDate !== editor.task!.date) {
+        await moveTask(editor.task!.id, finalDate)
+      }
       await updateTask(editor.task!.id, {
         title: title.trim(),
-        date: finalDate,
         priority,
         repeat,
         description,
@@ -178,11 +182,20 @@ export function TaskEditorModal() {
           <div className="mb-3 flex items-center gap-2">
             <Stopwatch taskId={editor.task!.id} />
             {timer?.taskId === editor.task!.id ? (
-              <button className="ghost-btn" onClick={() => stopTimer()}>
+              <button className="ghost-btn" onClick={() => void commitFocus()}>
                 停止计时
               </button>
             ) : (
-              <button className="ghost-btn" onClick={() => startTimer(editor.task!.id)}>
+              <button
+                className="ghost-btn"
+                onClick={() => {
+                  // 先提交旧计时再开新计时，保证切换任务不丢上一任务时长（QA Bug 1）
+                  void switchTimer(editor.task!.id)
+                  // 定向：切到主界面计时器面板并立即开始计时
+                  closeEditor()
+                  openTimerPanel()
+                }}
+              >
                 开始计时
               </button>
             )}

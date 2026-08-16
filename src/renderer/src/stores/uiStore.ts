@@ -6,13 +6,27 @@ import type { Task } from '../../../shared/types'
 import { addDays, currentYearMonth, shiftMonth, todayStr } from '../../../shared/date'
 
 export type TaskFilter = 'all' | 'pending' | 'done' | 'abandoned'
-export type CalendarView = 'month' | 'week' | 'day'
+export type CalendarView = 'month' | 'week' | 'day' | 'list'
 
-/** 正向计时器状态（进行中的秒表，不跨端持久化） */
+/**
+ * 正向计时器状态（进行中的秒表，不跨端持久化）。
+ * elapsed = accumMs + (paused ? 0 : now - startedAt)；paused 时 startedAt 无效。
+ */
 export interface TimerState {
+  /** 绑定的任务 ID；空字符串 = 自由计时（未绑定任务） */
   taskId: string
-  /** Date.now() 起始毫秒时间戳 */
+  /** 当前段起始毫秒时间戳（Date.now()） */
   startedAt: number
+  /** 会话最初开始时刻（暂停/继续不重置，用于生成 FocusSession.startedAt） */
+  beginAt: number
+  /** 暂停前累计毫秒 */
+  accumMs: number
+  paused: boolean
+}
+
+/** 计算当前已计时的毫秒数（纯函数，供各处展示复用） */
+export function timerElapsedMs(t: TimerState): number {
+  return t.accumMs + (t.paused ? 0 : Date.now() - t.startedAt)
 }
 
 export interface EditorState {
@@ -44,6 +58,7 @@ interface UiState {
   showPomodoro: boolean
   showHabits: boolean
   showGoals: boolean
+  showTimer: boolean
   dragOverDate: string | null
   contextMenu: ContextMenuState | null
   /** 正向计时：当前正在计时的任务 */
@@ -67,9 +82,14 @@ interface UiState {
   setShowPomodoro: (v: boolean) => void
   setShowHabits: (v: boolean) => void
   setShowGoals: (v: boolean) => void
+  setShowTimer: (v: boolean) => void
+  /** 打开计时面板并关闭其它主视图面板（供任务计时按钮「定向」复用） */
+  openTimerPanel: () => void
   setDragOverDate: (d: string | null) => void
   setContextMenu: (m: ContextMenuState | null) => void
   startTimer: (taskId: string) => void
+  pauseTimer: () => void
+  resumeTimer: () => void
   stopTimer: () => void
 }
 
@@ -88,6 +108,7 @@ export const useUiStore = create<UiState>((set) => ({
   showPomodoro: false,
   showHabits: false,
   showGoals: false,
+  showTimer: false,
   dragOverDate: null,
   contextMenu: null,
   timer: null,
@@ -142,11 +163,35 @@ export const useUiStore = create<UiState>((set) => ({
 
   setShowGoals: (v) => set({ showGoals: v }),
 
+  setShowTimer: (v) => set({ showTimer: v }),
+
+  openTimerPanel: () =>
+    set({ showInbox: false, showStats: false, showHabits: false, showGoals: false, showTimer: true }),
+
   setDragOverDate: (d) => set({ dragOverDate: d }),
 
   setContextMenu: (m) => set({ contextMenu: m }),
 
-  startTimer: (taskId) => set({ timer: { taskId, startedAt: Date.now() } }),
+  startTimer: (taskId) =>
+    set({ timer: { taskId, startedAt: Date.now(), beginAt: Date.now(), accumMs: 0, paused: false } }),
+
+  pauseTimer: () =>
+    set((s) => {
+      if (!s.timer || s.timer.paused) return s
+      return {
+        timer: {
+          ...s.timer,
+          accumMs: timerElapsedMs(s.timer),
+          paused: true,
+        },
+      }
+    }),
+
+  resumeTimer: () =>
+    set((s) => {
+      if (!s.timer || !s.timer.paused) return s
+      return { timer: { ...s.timer, startedAt: Date.now(), paused: false } }
+    }),
 
   stopTimer: () => set({ timer: null }),
 }))
