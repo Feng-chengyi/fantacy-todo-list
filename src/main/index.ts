@@ -5,6 +5,7 @@ import { app, BrowserWindow } from 'electron'
 import { registerDataIpc } from './ipc'
 import { registerPetIpc } from './pet-ipc'
 import { registerBackupIpc } from './backup'
+import { registerTimerAssetsIpc } from './timer-assets'
 import { store } from './store'
 import { createMainWindow, createPetWindow, getMainWindow, setQuitting } from './windows'
 import { createTray } from './tray'
@@ -21,6 +22,7 @@ if (!gotLock) {
     registerDataIpc()
     registerPetIpc()
     registerBackupIpc()
+    registerTimerAssetsIpc()
     createMainWindow()
     const petWin = createPetWindow()
     createTray()
