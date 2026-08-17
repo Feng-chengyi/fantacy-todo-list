@@ -2056,6 +2056,9 @@ textarea.input {
   gap: 8px;
 }
 .theme-color-dot {
+  /* relative：约束内部隐形 color-input（inset:0）只铺满色块本身，
+     否则会以弹窗遮罩为定位基准铺满整个设置面板，任意点击都弹出调色盘 */
+  position: relative;
   width: 26px;
   height: 26px;
   border-radius: 50%;
