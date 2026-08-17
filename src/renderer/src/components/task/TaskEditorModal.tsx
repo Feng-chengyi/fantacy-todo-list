@@ -213,25 +213,33 @@ export function TaskEditorModal() {
 
         {isEdit && (
           <div className="mb-3 flex items-center gap-2">
-            <Stopwatch taskId={editor.task!.id} occurrenceDate={editor.task!.date ?? null} />
-            {!!timer && isSameTimerInstance(timer, editor.task!.id, editor.task!.date ?? null) ? (
-              <button className="ghost-btn" onClick={() => void commitFocus()}>
-                停止计时
-              </button>
-            ) : (
-              <button
-                className="ghost-btn"
-                onClick={() => {
-                  // 先提交旧计时再开新计时，保证切换任务不丢上一任务时长（QA Bug 1）
-                  void switchTimer(editor.task!.id, editor.task!.date ?? null)
-                  // 定向：切到主界面计时器面板并立即开始计时
-                  closeEditor()
-                  openTimerPanel()
-                }}
-              >
-                开始计时
-              </button>
-            )}
+            {/* 计时实例口径与计时面板/任务仓库行/右键菜单一致：周期任务任务级（null），非周期用其日期 */}
+            {(() => {
+              const timerOcc = editor.task!.repeat ? null : (editor.task!.date ?? null)
+              return (
+                <>
+                  <Stopwatch taskId={editor.task!.id} occurrenceDate={timerOcc} />
+                  {!!timer && isSameTimerInstance(timer, editor.task!.id, timerOcc) ? (
+                    <button className="ghost-btn" onClick={() => void commitFocus()}>
+                      停止计时
+                    </button>
+                  ) : (
+                    <button
+                      className="ghost-btn"
+                      onClick={() => {
+                        // 先提交旧计时再开新计时，保证切换任务不丢上一任务时长（QA Bug 1）
+                        void switchTimer(editor.task!.id, timerOcc)
+                        // 定向：切到主界面计时器面板并立即开始计时
+                        closeEditor()
+                        openTimerPanel()
+                      }}
+                    >
+                      开始计时
+                    </button>
+                  )}
+                </>
+              )
+            })()}
             {editor.task!.durationSec != null && (
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 用时 {formatDurationMinutes(editor.task!.durationSec)}

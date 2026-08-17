@@ -129,7 +129,7 @@ export function TimerPanel() {
   const onBegin = (): void => {
     // 统一切换入口：先提交旧计时（≥5 秒落库），再开新计时（QA Bug 1）。
     // 重复任务保持任务级（occurrenceDate=null，避免全实例同步，设计 §7.8）；
-    // 非重复任务用其日期，对齐 TaskCard / ListView / 编辑弹窗的实例识别口径。
+    // 非重复任务用其日期，对齐任务仓库行 / 右键菜单 / 编辑弹窗的实例识别口径。
     const occurrenceDate = selectedTask?.repeat ? null : (selectedTask?.date ?? null)
     void switchTimer(selectedTaskId, occurrenceDate)
   }

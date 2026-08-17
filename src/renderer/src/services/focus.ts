@@ -61,7 +61,7 @@ export async function commitFocus(): Promise<boolean> {
 
 /**
  * 切换计时的唯一入口：先提交上一个任务的计时（不丢时长），再开始新计时。
- * TaskCard ▶ / 编辑弹窗「开始计时」/ 计时面板「开始计时」均使用。
+ * 任务仓库行 ▶ / 编辑弹窗「开始计时」/ 计时面板「开始计时」均使用。
  * occurrenceDate：重复任务的实例日期（日期隔离）；非重复任务传 null。
  */
 export async function switchTimer(taskId: string, occurrenceDate: string | null = null): Promise<void> {
