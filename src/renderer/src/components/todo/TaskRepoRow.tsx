@@ -1,6 +1,7 @@
 /**
- * v3 任务仓库行（待办页/待办集页共用）：勾选完成｜标题｜类型标签｜分类｜提醒｜
- * 进度信息（习惯打卡 / 目标圆环+截止倒计时 / 累计专注）｜计时操作。
+ * v3.1 任务仓库行（待办页/待办集页共用）：勾选完成｜标题｜类型标签｜计时操作；
+ * 二级元数据（分类/提醒/进度/连续打卡）默认收起，hover/focus 展开（N1.3）；
+ * 过期任务红色脉动高亮（N4）；已完成显示完成时间戳；目标进度环跟随任务自定义色（F6）。
  * 计时启动后由悬浮窗接管走时；完成自动停止计时（时长保留）。
  */
 import { useRef, type MouseEvent } from 'react'
@@ -55,6 +56,13 @@ function habitStreak(task: Task, today: string): number {
   return streak
 }
 
+/** ISO 时刻 → 本地 HH:mm（完成时间戳展示） */
+function localHm(iso: string): string {
+  const d = new Date(iso)
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export function TaskRepoRow({ task, todaySec }: { task: Task; todaySec: number }) {
   const openEdit = useUiStore((s) => s.openEdit)
   const setContextMenu = useUiStore((s) => s.setContextMenu)
@@ -66,11 +74,15 @@ export function TaskRepoRow({ task, todaySec }: { task: Task; todaySec: number }
   const type = task.taskType ?? 'normal'
   const done = task.status === 'done'
   const abandoned = task.status === 'abandoned'
+  // 过期判定：未完成 + 有截止日 + 已过今天（N4 红色脉动高亮）
+  const overdueDays = !done && !abandoned && task.date ? -daysUntil(task.date, today) : 0
+  const overdue = overdueDays > 0
   // 计时实例口径：周期/习惯任务任务级（null），非周期用其日期
   const occurrenceDate = task.repeat ? null : (task.date ?? null)
   const isTiming = !!timer && isSameTimerInstance(timer, task.id, occurrenceDate)
   const progress = progressLabel(task, todaySec, today)
   const checkedToday = (task.habitCheckins ?? []).includes(today)
+  const color = taskColor(task)
 
   const onContextMenu = (e: MouseEvent): void => {
     e.preventDefault()
@@ -109,13 +121,13 @@ export function TaskRepoRow({ task, todaySec }: { task: Task; todaySec: number }
 
   return (
     <div
-      className={`task-card roomy repo-row ${done ? 'done' : ''} ${abandoned ? 'abandoned' : ''}`}
+      className={`task-card roomy repo-row ${done ? 'done' : ''} ${abandoned ? 'abandoned' : ''} ${overdue ? 'overdue' : ''}`}
       onClick={() => openEdit(task)}
       onContextMenu={onContextMenu}
       title={task.title}
     >
       <div className="task-card-row">
-        <span className="task-priority-bar" style={{ background: taskColor(task) }} />
+        <span className="task-priority-bar" style={{ background: color }} />
         {type === 'habit' ? (
           <button
             className={`check ${checkedToday ? 'checked' : ''}`}
@@ -140,23 +152,22 @@ export function TaskRepoRow({ task, todaySec }: { task: Task; todaySec: number }
           </button>
         )}
         <span className="task-title">{task.title}</span>
+        {overdue && (
+          <span className="repo-overdue" title={`截止日 ${task.date}`}>
+            <i className="repo-overdue-dot" />
+            过期 {overdueDays} 天
+          </span>
+        )}
+        {done && task.completedAt && <span className="repo-done-at">✅ {localHm(task.completedAt)}</span>}
         {type === 'goal' && (
-          <span className="goal-ring" style={{ ['--p' as string]: String(task.progressValue ?? 0) }}>
+          <span
+            className="goal-ring"
+            style={{ ['--p' as string]: String(task.progressValue ?? 0), ['--ring-color' as string]: color }}
+          >
             <span>{Math.round(task.progressValue ?? 0)}</span>
           </span>
         )}
         <span className={`type-tag ${type !== 'normal' ? 'habit' : ''}`}>{TASK_TYPE_LABELS[type]}</span>
-        {task.category?.trim() && (
-          <span className="task-category">
-            <span className="task-category-dot" style={{ background: taskColor(task) }} />
-            {task.category.trim()}
-          </span>
-        )}
-        {task.reminder?.time && <span className="repo-reminder">⏰ {task.reminder.time}</span>}
-        {type === 'habit' && habitStreak(task, today) > 0 && (
-          <span className="repo-progress">🔥 连续 {habitStreak(task, today)} 天</span>
-        )}
-        {progress && <span className="repo-progress">{progress}</span>}
         {isTiming ? (
           <>
             <Stopwatch taskId={task.id} occurrenceDate={occurrenceDate} />
@@ -187,6 +198,22 @@ export function TaskRepoRow({ task, todaySec }: { task: Task; todaySec: number }
           )
         )}
       </div>
+      {/* 二级元数据：默认收起，hover / focus 展开（N1.3） */}
+      {(task.category?.trim() || task.reminder?.time || progress || (type === 'habit' && habitStreak(task, today) > 0)) && (
+        <div className="repo-row-extra">
+          {task.category?.trim() && (
+            <span className="task-category">
+              <span className="task-category-dot" style={{ background: color }} />
+              {task.category.trim()}
+            </span>
+          )}
+          {task.reminder?.time && <span className="repo-reminder">⏰ {task.reminder.time}</span>}
+          {type === 'habit' && habitStreak(task, today) > 0 && (
+            <span className="repo-progress">🔥 连续 {habitStreak(task, today)} 天</span>
+          )}
+          {progress && <span className="repo-progress">{progress}</span>}
+        </div>
+      )}
     </div>
   )
 }

@@ -193,8 +193,12 @@ export interface AppConfig {
   reminderSystemNotification?: boolean
   /** v3 主题外观：light 亮色 / dark 暗色 / system 跟随系统 */
   appearance?: 'light' | 'dark' | 'system'
-  /** v3 主题色（hex，作用于全局主色/按钮/选中态；缺省 = 品牌紫） */
+  /** v3 主题色（hex，亮色模式主色；缺省 = 品牌紫） */
   themeColor?: string
+  /** v3 主题色深色变体（hex，暗色模式主色；缺省 = 按 themeColor 查预设表回落） */
+  themeColorDark?: string
+  /** v3 主题预设包 ID（THEME_PRESETS 项 id；自定义配色后清除） */
+  themePresetId?: string
   /** v3 背景模式：plain 纯色 / image 图片 */
   bgMode?: 'plain' | 'image'
   /** v3 纯色背景色（hex） */
@@ -304,6 +308,25 @@ export interface PetAnimNotice {
   anim: 'timing' | 'finishing' | 'jumping'
   /** timing 专用：计时开始（true）/ 结束（false） */
   active?: boolean
+}
+
+/**
+ * 桌宠状态语义（主窗口页面态 → 桌宠联动的统一枚举，v3.1 N1.2）：
+ * - idle：常规待机；
+ * - empty：当前页面空状态（引导用户创建内容）；
+ * - all-done：今日待办清空（庆祝）；
+ * - focus：专注计时进行中；
+ * - milestone：里程碑达成（目标到期 / 习惯连续等）。
+ */
+export type PetState = 'idle' | 'empty' | 'all-done' | 'focus' | 'milestone'
+
+/** PetState → 桌宠气泡文案（EmptyState / 页面联动直接消费） */
+export const PET_STATE_TIPS: Record<PetState, string> = {
+  idle: '我在这里陪着你～',
+  empty: '这里还空空的，来添加点什么吧！',
+  'all-done': '今日待办全部完成，太棒啦！🎉',
+  focus: '专注中，加油！',
+  milestone: '里程碑达成，值得庆祝！🎉',
 }
 
 /** 宠物包动画键（7 组，与运行时一致） */

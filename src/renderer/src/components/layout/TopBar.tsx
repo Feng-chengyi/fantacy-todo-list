@@ -34,7 +34,7 @@ export function TopBar() {
 
       <div className="flex-1" />
 
-      <button className="text-btn" onClick={() => setShowSearch(true)} title="全局搜索">
+      <button className="text-btn" onClick={() => setShowSearch(true)} title="全局搜索（Ctrl+Shift+K）">
         🔍 搜索
       </button>
       <button className="text-btn" onClick={() => setShowHelp(true)} title="使用说明">

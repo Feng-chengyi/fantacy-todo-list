@@ -12,6 +12,8 @@ import type { TaskCollection } from '../../../../shared/types'
 import { useTaskStore } from '../../stores/taskStore'
 import { useUiStore } from '../../stores/uiStore'
 import { TaskRepoRow } from '../todo/TaskRepoRow'
+import { ConfirmDialog } from '../stats/ConfirmDialog'
+import { EmptyState } from '../common/EmptyState'
 import { sessionLocalDate } from '../../../../shared/focus'
 
 export function CollectionsPanel() {
@@ -35,6 +37,12 @@ export function CollectionsPanel() {
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  /** 待二次确认的删除操作：单个待办集 / 批量任务 */
+  const [pendingDelete, setPendingDelete] = useState<
+    | { kind: 'collection'; id: string; name: string; taskCount: number }
+    | { kind: 'tasks'; ids: string[] }
+    | null
+  >(null)
 
   const sorted = useMemo(
     () => [...collections].sort((a, b) => (a.isSystem === b.isSystem ? a.sortOrder - b.sortOrder : a.isSystem ? -1 : 1)),
@@ -51,6 +59,15 @@ export function CollectionsPanel() {
     () => collectionStats(tasks, sessions, selectedCollectionId),
     [tasks, sessions, selectedCollectionId],
   )
+
+  // 全部集合完成率（左栏进度环数据源，N7 卡片化）
+  const rateById = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const c of collections) {
+      map.set(c.id, collectionStats(tasks, sessions, c.id).rate)
+    }
+    return map
+  }, [collections, tasks, sessions])
 
   const today = todayStr()
   const todaySecByTask = useMemo(() => {
@@ -102,11 +119,22 @@ export function CollectionsPanel() {
     setDragOverId(null)
   }
 
-  const confirmDelete = (collection: TaskCollection): void => {
-    if (window.confirm(`删除待办集「${collection.name}」？内部任务将自动回流收集箱。`)) {
-      void deleteCollection(collection.id)
-      if (selectedId === collection.id) setSelectedId(INBOX_ID)
+  /** 删除待办集：统一 ConfirmDialog，显示将回流的任务数（N7，替代 window.confirm） */
+  const requestDeleteCollection = (collection: TaskCollection): void => {
+    const taskCount = tasks.filter((t) => (t.collectionId ?? INBOX_ID) === collection.id && t.status !== 'abandoned').length
+    setPendingDelete({ kind: 'collection', id: collection.id, name: collection.name, taskCount })
+  }
+
+  const confirmDelete = (): void => {
+    if (!pendingDelete) return
+    if (pendingDelete.kind === 'collection') {
+      void deleteCollection(pendingDelete.id)
+      if (selectedId === pendingDelete.id) setSelectedId(INBOX_ID)
+    } else {
+      void batchDeleteTasks(pendingDelete.ids)
+      clearSelection()
     }
+    setPendingDelete(null)
   }
 
   const renderCollectionItem = (c: TaskCollection) => {
@@ -131,7 +159,7 @@ export function CollectionsPanel() {
     return (
       <div
         key={c.id}
-        className={`collection-item ${selectedCollectionId === c.id ? 'active' : ''} ${dragOverId === c.id ? 'drag-over' : ''}`}
+        className={`collection-item ${selectedCollectionId === c.id ? 'active' : ''} ${dragOverId === c.id ? 'drag-over' : ''} ${dragId === c.id ? 'dragging' : ''}`}
         onClick={() => {
           setSelectedId(c.id)
           clearSelection()
@@ -162,6 +190,16 @@ export function CollectionsPanel() {
           {c.isSystem ? '📥 ' : '🗂 '}
           {c.name}
         </span>
+        {/* 完成率进度环（N7 卡片化）：0% 隐藏避免空集合一圈灰 */}
+        {(rateById.get(c.id) ?? 0) > 0 && (
+          <span
+            className="collection-ring"
+            style={{ ['--p' as string]: String(Math.round((rateById.get(c.id) ?? 0) * 100)) }}
+            title={`完成率 ${Math.round((rateById.get(c.id) ?? 0) * 100)}%`}
+          >
+            <span>{Math.round((rateById.get(c.id) ?? 0) * 100)}</span>
+          </span>
+        )}
         <span className="collection-count">{count}</span>
         {!c.isSystem && (
           <button
@@ -169,7 +207,7 @@ export function CollectionsPanel() {
             title="删除待办集（任务回流收集箱）"
             onClick={(e) => {
               e.stopPropagation()
-              confirmDelete(c)
+              requestDeleteCollection(c)
             }}
           >
             ✕
@@ -298,12 +336,7 @@ export function CollectionsPanel() {
               <button
                 className="danger-btn"
                 style={{ height: 26, padding: '0 10px', fontSize: 12 }}
-                onClick={() => {
-                  if (window.confirm(`删除选中的 ${selectedIds.length} 项任务？`)) {
-                    void batchDeleteTasks(selectedIds)
-                    clearSelection()
-                  }
-                }}
+                onClick={() => setPendingDelete({ kind: 'tasks', ids: [...selectedTasks] })}
               >
                 批量删除
               </button>
@@ -315,9 +348,13 @@ export function CollectionsPanel() {
         </div>
 
         {collectionTasks.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center text-sm" style={{ color: 'var(--text-muted)' }}>
-            该待办集暂无任务，点击右上角「新建任务」添加
-          </div>
+          <EmptyState
+            icon="🗂"
+            title="这个待办集还是空的"
+            desc="点击右上角「新建任务」添加；也可以在待办页通过右键菜单把任务移入这里。"
+            action={{ label: '新建任务', onClick: () => openCreate(today, { collectionId: selectedCollectionId }) }}
+            petState="empty"
+          />
         ) : (
           <div className="flex flex-col gap-1.5">
             {collectionTasks.map((task) => (
@@ -337,6 +374,30 @@ export function CollectionsPanel() {
           </div>
         )}
       </div>
+
+      {/* 删除二次确认（N7：含任务回流数量提示 / 批量任务删除） */}
+      {pendingDelete?.kind === 'collection' && (
+        <ConfirmDialog
+          title={`删除待办集「${pendingDelete.name}」`}
+          detail={
+            pendingDelete.taskCount > 0
+              ? `待办集内 ${pendingDelete.taskCount} 个任务将自动回流收集箱，任务本身不会被删除。`
+              : '该待办集为空，删除不会影响任何任务。'
+          }
+          confirmLabel="确认删除"
+          onConfirm={confirmDelete}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
+      {pendingDelete?.kind === 'tasks' && (
+        <ConfirmDialog
+          title={`删除选中的 ${pendingDelete.ids.length} 项任务`}
+          detail="删除后这些任务及其专注记录将一并移除。"
+          confirmLabel="确认删除"
+          onConfirm={confirmDelete}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   )
 }

@@ -20,6 +20,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   reminderSystemNotification: true,
   appearance: 'system',
   themeColor: '#6c5ce7',
+  themeColorDark: '#8b7cf7',
   bgMode: 'plain',
   bgColor: '#f7f8fa',
   bgImage: null,
@@ -38,6 +39,84 @@ export const THEME_COLOR_PRESETS: { name: string; light: string; dark: string }[
   { name: '樱花粉', light: '#ec4899', dark: '#f472b6' },
   { name: '青碧青', light: '#14b8a6', dark: '#2dd4bf' },
   { name: '石墨灰', light: '#64748b', dark: '#94a3b8' },
+]
+
+/**
+ * 解析当前配置的亮/暗双色 accent（v3.1 修复 N3.2/F1/F2）：
+ * - 显式 themeColorDark 优先（预设点击 / 自定义色写入）；
+ * - 否则按 themeColor 反查预设表取 dark 变体（兼容旧配置，默认紫 → 暗紫）；
+ * - 均缺省回落 CSS 变量预设（返回 null 时不做内联覆盖，交由 :root 主题预设生效）。
+ */
+export function accentPair(
+  cfg: Pick<AppConfig, 'themeColor' | 'themeColorDark'>,
+): { light: string | null; dark: string | null } {
+  const light = cfg.themeColor?.trim() || null
+  const explicitDark = cfg.themeColorDark?.trim() || null
+  if (light) {
+    const preset = THEME_COLOR_PRESETS.find((p) => p.light.toLowerCase() === light.toLowerCase())
+    return { light, dark: explicitDark ?? preset?.dark ?? light }
+  }
+  // 无亮色值但有暗色值：亮色回落默认品牌紫
+  return { light: explicitDark ? DEFAULT_CONFIG.themeColor ?? '#6c5ce7' : null, dark: explicitDark }
+}
+
+/** v3.1 主题预设包（N3.1）：一键切换外观组合（明暗 + 双色 accent + 背景色） */
+export interface ThemePreset {
+  id: string
+  name: string
+  emoji: string
+  appearance: 'light' | 'dark' | 'system'
+  themeColor: string
+  themeColorDark: string
+  bgColor: string
+}
+
+export const THEME_PRESETS: ThemePreset[] = [
+  {
+    id: 'aurora',
+    name: '极光紫',
+    emoji: '🌌',
+    appearance: 'system',
+    themeColor: '#6c5ce7',
+    themeColorDark: '#8b7cf7',
+    bgColor: '#f7f8fa',
+  },
+  {
+    id: 'midnight',
+    name: '午夜深蓝',
+    emoji: '🌙',
+    appearance: 'dark',
+    themeColor: '#3b82f6',
+    themeColorDark: '#60a5fa',
+    bgColor: '#17181c',
+  },
+  {
+    id: 'matcha',
+    name: '抹茶清新',
+    emoji: '🍵',
+    appearance: 'light',
+    themeColor: '#22c55e',
+    themeColorDark: '#4ade80',
+    bgColor: '#f0fdf4',
+  },
+  {
+    id: 'sakura',
+    name: '樱花暖粉',
+    emoji: '🌸',
+    appearance: 'light',
+    themeColor: '#ec4899',
+    themeColorDark: '#f472b6',
+    bgColor: '#fdf2f8',
+  },
+  {
+    id: 'amber',
+    name: '琥珀暮色',
+    emoji: '🌅',
+    appearance: 'system',
+    themeColor: '#f5a623',
+    themeColorDark: '#fbbf24',
+    bgColor: '#fef9ec',
+  },
 ]
 
 /** v3 纯色背景预设 */

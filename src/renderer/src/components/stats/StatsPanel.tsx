@@ -11,9 +11,11 @@ import {
   categoryFocusSplit,
   computeFocusSummary,
   computeStats,
+  currentFocusStreak,
   dailyFocusSnapshot,
   FREE_FOCUS_LABEL,
   hourlyFocusDistribution,
+  maxFocusStreak,
   monthlyDailyTrend,
   yearlyMonthlyTrend,
   type Completion,
@@ -133,6 +135,16 @@ function YearNav({ year, onChange }: { year: number; onChange: (year: number) =>
 
 type DistMode = 'day' | 'week' | 'month' | 'custom'
 
+/**
+ * 视图状态会话级持久（F5）：统计维度 / 当日快照 / 分布粒度在切页再回来后保持，
+ * 不再每天重置为默认（模块级对象随应用生命周期存活）。
+ */
+const viewMemory: { scopeId: string; selectedDay: string; distMode: DistMode } = {
+  scopeId: '',
+  selectedDay: '',
+  distMode: 'day',
+}
+
 /** ISO 时刻 → 本地 HH:mm */
 function timeOf(iso: string): string {
   const d = new Date(iso)
@@ -152,8 +164,12 @@ export function StatsPanel() {
 
   const today = todayStr()
 
-  /* ---- v3 统计维度：全局 / 指定待办集（过滤任务与专注会话） ---- */
-  const [scopeId, setScopeId] = useState('')
+  /* ---- v3 统计维度：全局 / 指定待办集（过滤任务与专注会话；F5 会话级持久） ---- */
+  const [scopeId, setScopeIdState] = useState(viewMemory.scopeId)
+  const setScopeId = (v: string): void => {
+    viewMemory.scopeId = v
+    setScopeIdState(v)
+  }
   const scopedTasks = useMemo(
     () => (scopeId ? tasks.filter((t) => (t.collectionId ?? INBOX_ID) === scopeId) : tasks),
     [tasks, scopeId],
@@ -210,13 +226,21 @@ export function StatsPanel() {
     [scopedSessions, focusFrom],
   )
 
-  /* ---- 模块 2：当日专注（左右箭头回溯历史单日） ---- */
-  const [selectedDay, setSelectedDay] = useState(today)
+  /* ---- 模块 2：当日专注（左右箭头回溯历史单日；F5 会话级持久） ---- */
+  const [selectedDay, setSelectedDayState] = useState(viewMemory.selectedDay || today)
+  const setSelectedDay = (v: string): void => {
+    viewMemory.selectedDay = v
+    setSelectedDayState(v)
+  }
   const daySnapshot = useMemo(() => dailyFocusSnapshot(scopedSessions, selectedDay), [scopedSessions, selectedDay])
   const isFutureDay = selectedDay >= today
 
-  /* ---- 模块 3：专注时长分布饼图（日 / 周 / 月 / 自定义 + 明细入口） ---- */
-  const [distMode, setDistMode] = useState<DistMode>('day')
+  /* ---- 模块 3：专注时长分布饼图（日 / 周 / 月 / 自定义 + 明细入口；F5 会话级持久） ---- */
+  const [distMode, setDistModeState] = useState<DistMode>(viewMemory.distMode)
+  const setDistMode = (v: DistMode): void => {
+    viewMemory.distMode = v
+    setDistModeState(v)
+  }
   const [customFrom, setCustomFrom] = useState(() => addDays(todayStr(), -29))
   const [customTo, setCustomTo] = useState(() => todayStr())
   const [showDetail, setShowDetail] = useState(false)
@@ -261,7 +285,7 @@ export function StatsPanel() {
       }))
   }, [scopedSessions, distRange, showDetail, titleById])
 
-  /* ---- 模块 4：月度专注时段分布（24 小时柱状图，月份切换） ---- */
+  /* ---- 模块 4：月度专注时段分布（24 小时柱状图，月份切换；洞察升级为 Top3 时段） ---- */
   const [hourYm, setHourYm] = useState(nowYm)
   const hourBuckets = useMemo(
     () => hourlyFocusDistribution(scopedSessions, hourYm.year, hourYm.month),
@@ -269,6 +293,16 @@ export function StatsPanel() {
   )
   const peakHour = hourBuckets.reduce((best, sec, h) => (sec > hourBuckets[best] ? h : best), 0)
   const hasHourData = hourBuckets[peakHour] > 0
+  /** 当月累计专注时长最长的前 3 个小时区间（N6 高效时段洞察） */
+  const topHours = useMemo(
+    () =>
+      hourBuckets
+        .map((sec, h) => ({ sec, h }))
+        .filter((x) => x.sec > 0)
+        .sort((a, b) => b.sec - a.sec)
+        .slice(0, 3),
+    [hourBuckets],
+  )
 
   /* ---- 模块 5：月度专注趋势（面积图，月份切换） ---- */
   const [trendYm, setTrendYm] = useState(nowYm)
@@ -299,6 +333,11 @@ export function StatsPanel() {
       .sort((a, b) => b.streak - a.streak)
   }, [habitTasks, today])
   const maxHabitStreak = habitStreaks.reduce((m, x) => Math.max(m, x.streak), 0)
+
+  /* ---- v3.1 亮点卡指标（N6）：sessions 维度的当前 / 最长连续专注天数 ---- */
+  const focusStreakNow = useMemo(() => currentFocusStreak(scopedSessions, today), [scopedSessions, today])
+  const focusStreakMax = useMemo(() => maxFocusStreak(scopedSessions), [scopedSessions])
+  const todayPct = pct(stats.today.done, stats.today.total)
 
   const priorityMax = Math.max(1, ...ALL_PRIORITIES.map((p) => stats.priorityDistribution[p]))
   const categoryEntries = Object.entries(stats.categoryDistribution).sort((a, b) => b[1] - a[1])
@@ -363,6 +402,30 @@ export function StatsPanel() {
           )}
         </div>
       </div>
+
+      {/* v3.1 亮点卡（N6 决策 C4）：页面第一视觉元素，一眼看到今日成果与连续性 */}
+      <section className="stats-highlight">
+        <div className="stats-highlight-item" title="今日到期实例的完成率（重复任务按单日展开）">
+          <span className="stats-highlight-icon">✅</span>
+          <span className="stats-highlight-num plain">{todayPct}%</span>
+          <span className="stats-highlight-label">今日完成率</span>
+        </div>
+        <div className="stats-highlight-item" title="每天至少完成一个任务的连续天数">
+          <span className="stats-highlight-icon">🔥</span>
+          <span className="stats-highlight-num">{stats.streak}</span>
+          <span className="stats-highlight-label">连续打卡 / 天</span>
+        </div>
+        <div className="stats-highlight-item" title="有专注记录的连续天数（历史最长）">
+          <span className="stats-highlight-icon">⏱</span>
+          <span className="stats-highlight-num">{focusStreakMax}</span>
+          <span className="stats-highlight-label">最长连续专注 / 天</span>
+        </div>
+        <div className="stats-highlight-item" title={`当前连续专注 ${focusStreakNow} 天；累计专注总时长`}>
+          <span className="stats-highlight-icon">🕐</span>
+          <span className="stats-highlight-num plain">{formatDurationCompact(focusSummary.totalSeconds)}</span>
+          <span className="stats-highlight-label">累计专注</span>
+        </div>
+      </section>
 
       <p className="dash-section-title">专注数据分析</p>
 
@@ -530,7 +593,9 @@ export function StatsPanel() {
         <HourBarChart hours={hourBuckets} />
         <p className="stat-hint">
           {hasHourData
-            ? `最高效时段：${peakHour}:00 – ${peakHour + 1}:00（累计 ${formatDurationCompact(hourBuckets[peakHour])}）`
+            ? `最常专注时段：${topHours
+                .map((x) => `${String(x.h).padStart(2, '0')}:00–${String(x.h + 1).padStart(2, '0')}`)
+                .join(' · ')}（当月累计，峰值 ${formatDurationCompact(hourBuckets[peakHour])}）`
             : '切换月份查看各小时区间的累计专注时长'}
         </p>
       </section>

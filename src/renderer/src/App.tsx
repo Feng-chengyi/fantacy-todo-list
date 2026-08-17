@@ -12,6 +12,7 @@ import { useGoalStore } from './stores/goalStore'
 import { useUiStore } from './stores/uiStore'
 import { TopBar } from './components/layout/TopBar'
 import { Sidebar } from './components/layout/Sidebar'
+import { StatusBar } from './components/layout/StatusBar'
 import { SettingsPanel } from './components/layout/SettingsPanel'
 import { PetMakerPanel } from './components/petmaker/PetMakerPanel'
 import { TodoPanel } from './components/todo/TodoPanel'
@@ -157,8 +158,14 @@ export default function App(): JSX.Element {
       <TopBar />
       <div className="flex min-h-0 flex-1">
         <Sidebar />
-        <main className="min-w-0 flex-1 overflow-hidden">{mainView}</main>
+        {/* key=page：切换页面时重挂载触发统一入场过渡（N1.1，180ms） */}
+        <main className="min-w-0 flex-1 overflow-hidden">
+          <div key={page} className="page-transition">
+            {mainView}
+          </div>
+        </main>
       </div>
+      <StatusBar />
       <FloatingTimer />
       <SettingsPanel />
       {showPetMaker && <PetMakerPanel />}

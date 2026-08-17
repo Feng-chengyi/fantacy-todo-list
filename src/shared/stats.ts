@@ -323,6 +323,53 @@ export function dailyFocusSnapshot(sessions: FocusSession[], date: string): Dail
   return { date, sessions: count, seconds }
 }
 
+/* ============ 专注连续天数（v3.1 N6：sessions 维度连续性指标） ============ */
+
+/** 有专注会话的日期集合（本地 YYYY-MM-DD） */
+function focusDates(sessions: FocusSession[]): Set<string> {
+  const set = new Set<string>()
+  for (const s of sessions) set.add(sessionDate(s))
+  return set
+}
+
+/**
+ * 当前连续专注天数：从 today 起往前逐日计数（今天尚无会话不阻断，从昨天起算），
+ * 口径与任务 streak 一致——当天尚未专注不打断既有连续记录。
+ */
+export function currentFocusStreak(sessions: FocusSession[], today: string): number {
+  const dates = focusDates(sessions)
+  if (dates.size === 0) return 0
+  const cursor = parseLocal(today)
+  if (!dates.has(today)) cursor.setDate(cursor.getDate() - 1)
+  let streak = 0
+  for (let i = 0; i < 366 * 5; i++) {
+    const d = formatLocal(cursor)
+    if (!dates.has(d)) break
+    streak++
+    cursor.setDate(cursor.getDate() - 1)
+  }
+  return streak
+}
+
+/** 历史最长连续专注天数（全部会话日期中的最长连续段） */
+export function maxFocusStreak(sessions: FocusSession[]): number {
+  const dates = [...focusDates(sessions)].sort()
+  let best = 0
+  let run = 0
+  let prev: string | null = null
+  for (const d of dates) {
+    if (prev !== null) {
+      const diff = parseLocal(d).getTime() - parseLocal(prev).getTime()
+      run = diff === 86400000 ? run + 1 : 1
+    } else {
+      run = 1
+    }
+    if (run > best) best = run
+    prev = d
+  }
+  return best
+}
+
 /** 自由计时（未绑定任务）会话在分类拆解中的展示名 */
 export const FREE_FOCUS_LABEL = '自由计时'
 /** 绑定了任务但任务无分类时的展示名 */
