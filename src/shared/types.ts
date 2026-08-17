@@ -3,6 +3,9 @@
  * main / preload / renderer / pet 四方一律从此处 import type，禁止在各端重复声明。
  */
 
+/** 明暗模式（v3.2 新增 sunset：按本地时段自动切换，18:00–06:00 暗色） */
+export type AppearanceMode = 'light' | 'dark' | 'system' | 'sunset'
+
 export type Priority = 'high' | 'medium' | 'low'
 export type TaskStatus = 'pending' | 'done' | 'abandoned'
 export type RepeatType = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'
@@ -191,14 +194,16 @@ export interface AppConfig {
   reminderDefaultTime?: string
   /** 提醒是否同时弹系统通知（缺省 true） */
   reminderSystemNotification?: boolean
-  /** v3 主题外观：light 亮色 / dark 暗色 / system 跟随系统 */
-  appearance?: 'light' | 'dark' | 'system'
+  /** v3 主题外观：light 亮色 / dark 暗色 / system 跟随系统 / sunset 按时段自动切换 */
+  appearance?: AppearanceMode
   /** v3 主题色（hex，亮色模式主色；缺省 = 品牌紫） */
   themeColor?: string
   /** v3 主题色深色变体（hex，暗色模式主色；缺省 = 按 themeColor 查预设表回落） */
   themeColorDark?: string
   /** v3 主题预设包 ID（THEME_PRESETS 项 id；自定义配色后清除） */
   themePresetId?: string
+  /** v3.2 自定义主题（P1-4：用户命名保存的外观组合，与预设包并列展示） */
+  customThemes?: CustomTheme[]
   /** v3 背景模式：plain 纯色 / image 图片 */
   bgMode?: 'plain' | 'image'
   /** v3 纯色背景色（hex） */
@@ -289,6 +294,24 @@ export interface ExportResult {
   canceled: boolean
   path?: string
   error?: string
+}
+
+/** 用户保存的自定义主题（P1-4：命名外观组合） */
+export interface CustomTheme {
+  id: string
+  name: string
+  appearance: AppearanceMode
+  themeColor: string
+  themeColorDark: string
+  bgColor: string
+}
+
+/** 通用文本文件导出入参（主题 JSON / 时间轴周报共用，P2-1/P2-4） */
+export interface TextFileExportInput {
+  defaultName: string
+  content: string
+  filterName?: string
+  filterExt?: string
 }
 
 /** 选择资产结果（canceled = 用户取消对话框） */
@@ -459,6 +482,8 @@ export interface RendererApi {
   pickBgImage(): Promise<AssetPickResult>
   /** v3 主题：清除背景图片（删除落盘文件） */
   clearBgImage(): Promise<void>
+  /** v3.2 通用文本导出：保存对话框 + 落盘（主题 JSON / 周报 Markdown 共用） */
+  exportTextFile(input: TextFileExportInput): Promise<ExportResult>
   /** 原子提交一次专注会话（追加 session + 累加绑定任务 durationSec，单次落盘） */
   commitFocusSession(session: FocusSession): Promise<FocusCommitResult>
   /** 删除单条专注会话（连带扣减绑定任务 durationSec），返回最新全量数据 */

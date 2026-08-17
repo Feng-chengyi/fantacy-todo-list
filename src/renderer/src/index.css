@@ -2779,4 +2779,128 @@ select:focus-visible,
   outline-offset: 1px;
 }
 
+/* ================================================================
+ * v3.2 增补（P1-4 自定义主题 / P1-6 dim 次级色 / P2-5 年度回顾）
+ * ================================================================ */
+
+/* ---------- P1-4 自定义主题 chips ---------- */
+.custom-theme-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.custom-theme-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+.custom-theme-chip.active {
+  border-color: var(--accent);
+}
+.custom-theme-apply {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.custom-theme-chip.active .custom-theme-apply {
+  color: var(--accent);
+  font-weight: 600;
+}
+.custom-theme-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.custom-theme-del {
+  height: 24px;
+  padding: 0 6px;
+  border: none;
+  background: transparent;
+  font-size: 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.custom-theme-del:hover {
+  color: var(--priority-high);
+}
+
+/* ---------- P2-5 年度回顾：12 月热力条 + 关键数据 ---------- */
+.year-review-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 5px;
+  margin: 12px 0 4px;
+}
+.year-review-cell {
+  aspect-ratio: 1 / 0.9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+/* 低强度档消费 --accent-dim（P1-6），高档渐进到 accent */
+.year-review-cell[data-level='1'] {
+  background: color-mix(in srgb, var(--accent-dim, var(--accent)) 32%, var(--bg));
+}
+.year-review-cell[data-level='2'] {
+  background: color-mix(in srgb, var(--accent) 38%, var(--bg));
+  color: var(--text);
+}
+.year-review-cell[data-level='3'] {
+  background: color-mix(in srgb, var(--accent) 62%, var(--bg));
+  color: var(--accent-contrast);
+}
+.year-review-cell[data-level='4'] {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+.year-review-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.year-review-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border-radius: 8px;
+  background: var(--bg);
+}
+.year-review-num {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.year-review-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 

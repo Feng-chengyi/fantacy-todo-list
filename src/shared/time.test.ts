@@ -2,7 +2,14 @@
  * time 纯函数单测：HH:mm 解析 / hh:mm:ss 秒表 / 用时分钟 / 仪表盘时长格式化。
  */
 import { describe, expect, it } from 'vitest'
-import { formatDurationAxis, formatDurationCompact, formatDurationMinutes, formatHms, timeToMinutes } from './time'
+import {
+  formatDurationAxis,
+  formatDurationCompact,
+  formatDurationMinutes,
+  formatHms,
+  isNightHour,
+  timeToMinutes,
+} from './time'
 
 describe('timeToMinutes', () => {
   it('解析 HH:mm', () => {
@@ -64,5 +71,32 @@ describe('formatDurationAxis（图表 y 轴刻度）', () => {
     expect(formatDurationAxis(3600)).toBe('1h')
     expect(formatDurationAxis(5400)).toBe('1.5h')
     expect(formatDurationAxis(7200)).toBe('2h')
+  })
+})
+
+describe('isNightHour（日落自动切深色，P2-2）', () => {
+  it('默认 18–6 跨零点区间：傍晚/凌晨为夜间，白天为日间', () => {
+    expect(isNightHour(18)).toBe(true)
+    expect(isNightHour(23)).toBe(true)
+    expect(isNightHour(0)).toBe(true)
+    expect(isNightHour(5)).toBe(true)
+    expect(isNightHour(6)).toBe(false)
+    expect(isNightHour(12)).toBe(false)
+    expect(isNightHour(17)).toBe(false)
+  })
+  it('同日起区间（如 8–18）', () => {
+    expect(isNightHour(8, 8, 18)).toBe(true)
+    expect(isNightHour(17, 8, 18)).toBe(true)
+    expect(isNightHour(18, 8, 18)).toBe(false)
+    expect(isNightHour(7, 8, 18)).toBe(false)
+  })
+  it('from === to 视为全天夜间', () => {
+    expect(isNightHour(3, 9, 9)).toBe(true)
+    expect(isNightHour(15, 9, 9)).toBe(true)
+  })
+  it('非法小时回退 false', () => {
+    expect(isNightHour(-1)).toBe(false)
+    expect(isNightHour(24)).toBe(false)
+    expect(isNightHour(Number.NaN)).toBe(false)
   })
 })

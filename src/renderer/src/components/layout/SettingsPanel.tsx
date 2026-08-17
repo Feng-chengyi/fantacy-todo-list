@@ -6,6 +6,7 @@
  * - 原有能力：撒花 / 周起始 / 桌宠 / 数据备份导入导出。
  */
 import { useEffect, useRef, useState } from 'react'
+import type { AppearanceMode, CustomTheme } from '../../../../shared/types'
 import {
   BG_COLOR_PRESETS,
   DEFAULT_CONFIG,
@@ -18,12 +19,27 @@ import { useUiStore } from '../../stores/uiStore'
 import { useTaskStore } from '../../stores/taskStore'
 import * as ipc from '../../services/ipc'
 
+/** 明暗模式选项（v3.2 新增 sunset：18:00–06:00 自动切暗色） */
+const APPEARANCE_MODES: { key: AppearanceMode; label: string }[] = [
+  { key: 'light', label: '亮色' },
+  { key: 'dark', label: '暗色' },
+  { key: 'system', label: '跟随系统' },
+  { key: 'sunset', label: '日落切换' },
+]
+
 /** 背景模糊档位语义（N3.5）：0=无 1-10=轻 11-25=中 26-40=重 */
 function blurLevelLabel(v: number): string {
   if (v <= 0) return '无'
   if (v <= 10) return '轻'
   if (v <= 25) return '中'
   return '重'
+}
+
+/** 本地日期紧凑串（导出文件名用） */
+function todayCompact(): string {
+  const d = new Date()
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`
 }
 
 const ANCHOR_SECTIONS: { key: string; label: string }[] = [
@@ -44,6 +60,7 @@ export function SettingsPanel() {
   const themeColor = useConfigStore((s) => s.themeColor ?? '#6c5ce7')
   const themeColorDark = useConfigStore((s) => s.themeColorDark)
   const themePresetId = useConfigStore((s) => s.themePresetId)
+  const customThemes = useConfigStore((s) => s.customThemes)
   const bgMode = useConfigStore((s) => s.bgMode ?? 'plain')
   const bgColor = useConfigStore((s) => s.bgColor ?? '#f7f8fa')
   const bgImage = useConfigStore((s) => s.bgImage)
@@ -55,6 +72,7 @@ export function SettingsPanel() {
 
   const [backupMsg, setBackupMsg] = useState<string | null>(null)
   const [bgMsg, setBgMsg] = useState<string | null>(null)
+  const [themeName, setThemeName] = useState('')
   const panelRef = useRef<HTMLDivElement | null>(null)
 
   // 当前双色 accent（active 判定与实际写入保持一致，修复 F2）
@@ -131,6 +149,62 @@ export function SettingsPanel() {
     })
   }
 
+  /** 保存当前外观组合为自定义主题（P1-4：命名保存，与预设包并列） */
+  const onSaveCustomTheme = async (): Promise<void> => {
+    const name = themeName.trim()
+    if (!name) return
+    const entry: CustomTheme = {
+      id: `ct-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      name,
+      appearance,
+      themeColor,
+      themeColorDark: activePair.dark ?? themeColor,
+      bgColor,
+    }
+    await update({ customThemes: [...(customThemes ?? []), entry] })
+    setThemeName('')
+    setBgMsg(`自定义主题「${name}」已保存`)
+  }
+
+  const onApplyCustomTheme = (t: CustomTheme): void => {
+    void update({
+      themePresetId: undefined,
+      appearance: t.appearance,
+      themeColor: t.themeColor,
+      themeColorDark: t.themeColorDark,
+      bgColor: t.bgColor,
+      bgMode: 'plain',
+    })
+  }
+
+  const onDeleteCustomTheme = (id: string): void => {
+    void update({ customThemes: (customThemes ?? []).filter((t) => t.id !== id) })
+  }
+
+  /** 导出当前主题为 JSON（P2-1）：复用通用文本导出通道 */
+  const onExportTheme = async (): Promise<void> => {
+    const payload = {
+      app: 'fantacy-todo-list',
+      kind: 'theme',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      appearance,
+      themeColor,
+      themeColorDark: activePair.dark ?? '',
+      bgMode,
+      bgColor,
+      bgBlur,
+      uiOpacity,
+    }
+    const res = await ipc.exportTextFile({
+      defaultName: `fantacy-theme-${todayCompact()}.json`,
+      content: JSON.stringify(payload, null, 2),
+      filterName: 'JSON',
+      filterExt: 'json',
+    })
+    setBgMsg(res.canceled ? '已取消导出' : res.error ? `导出失败：${res.error}` : `主题已导出到 ${res.path}`)
+  }
+
   /** 锚点跳转（N3.6）：滚动到对应分区标题 */
   const scrollToSection = (key: string): void => {
     const panel = panelRef.current
@@ -192,14 +266,60 @@ export function SettingsPanel() {
               </button>
             ))}
           </div>
+          {/* 自定义主题（P1-4）：命名保存的外观组合，点击应用，✕ 删除 */}
+          {(customThemes?.length ?? 0) > 0 && (
+            <div className="custom-theme-row">
+              {(customThemes ?? []).map((t) => (
+                <span
+                  key={t.id}
+                  className={`custom-theme-chip ${activePair.light === t.themeColor && appearance === t.appearance ? 'active' : ''}`}
+                >
+                  <button
+                    className="custom-theme-apply"
+                    title={`应用自定义主题「${t.name}」`}
+                    onClick={() => onApplyCustomTheme(t)}
+                  >
+                    <i className="custom-theme-dot" style={{ background: t.themeColor }} />
+                    {t.name}
+                  </button>
+                  <button className="custom-theme-del" title="删除该自定义主题" onClick={() => onDeleteCustomTheme(t.id)}>
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex w-full items-center gap-2" style={{ marginTop: 4 }}>
+            <input
+              className="input"
+              style={{ height: 26, fontSize: 12, flex: 1, minWidth: 0 }}
+              placeholder="将当前配色保存为自定义主题…"
+              value={themeName}
+              onChange={(e) => setThemeName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void onSaveCustomTheme()
+              }}
+            />
+            <button className="ghost-btn" style={{ height: 26, fontSize: 12 }} disabled={!themeName.trim()} onClick={() => void onSaveCustomTheme()}>
+              💾 保存主题
+            </button>
+            <button className="ghost-btn" style={{ height: 26, fontSize: 12 }} title="导出当前主题为 JSON 文件" onClick={() => void onExportTheme()}>
+              ⇪ 导出 JSON
+            </button>
+          </div>
         </div>
 
         <label className="setting-row">
           <span>明暗模式</span>
           <div className="filter-tabs">
-            {(['light', 'dark', 'system'] as const).map((mode) => (
-              <button key={mode} className={appearance === mode ? 'active' : ''} onClick={() => void update({ appearance: mode })}>
-                {mode === 'light' ? '亮色' : mode === 'dark' ? '暗色' : '跟随系统'}
+            {APPEARANCE_MODES.map((mode) => (
+              <button
+                key={mode.key}
+                className={appearance === mode.key ? 'active' : ''}
+                title={mode.key === 'sunset' ? '18:00 – 次日 06:00 自动切换暗色' : undefined}
+                onClick={() => void update({ appearance: mode.key })}
+              >
+                {mode.label}
               </button>
             ))}
           </div>

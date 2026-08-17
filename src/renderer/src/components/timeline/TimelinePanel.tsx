@@ -21,6 +21,7 @@ import {
 import { useConfigStore } from '../../stores/configStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { EmptyState } from '../common/EmptyState'
+import { exportTextFile } from '../../services/ipc'
 
 type TlView = 'day' | 'week' | 'month'
 
@@ -79,6 +80,7 @@ export function TimelinePanel() {
   const [view, setView] = useState<TlView>('day')
   const [dayDate, setDayDate] = useState(today)
   const [ym, setYm] = useState(currentYearMonth())
+  const [reportMsg, setReportMsg] = useState<string | null>(null)
 
   // 会话按日分组 + 任务标题映射（时长条数据源）
   const sessionsByDate = useMemo(() => groupSessionsByDate(sessions), [sessions])
@@ -86,6 +88,17 @@ export function TimelinePanel() {
   const activityCountByDate = useMemo(() => {
     const map = new Map<string, number>()
     for (const a of activities) {
+      const d = localDate(a.createdAt)
+      map.set(d, (map.get(d) ?? 0) + 1)
+    }
+    return map
+  }, [activities])
+
+  /** 每日完成事项数（周报数据源，P2-4） */
+  const completeByDate = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const a of activities) {
+      if (a.type !== 'complete') continue
       const d = localDate(a.createdAt)
       map.set(d, (map.get(d) ?? 0) + 1)
     }
@@ -139,6 +152,36 @@ export function TimelinePanel() {
   const gotoDay = (date: string): void => {
     setDayDate(date)
     setView('day')
+  }
+
+  /** 导出本周 Markdown 周报（P2-4）：每日专注/完成/记录 + 周汇总 */
+  const onExportWeekReport = async (): Promise<void> => {
+    const lines: string[] = [`# 专注周报（${week[0]} ~ ${week[6]}）`, '']
+    for (const r of weekRows) {
+      const weekday = WEEKDAY_LABELS[new Date(`${r.date}T00:00:00`).getDay()]
+      const focus =
+        r.summary.totalSec > 0
+          ? `${r.summary.count} 次 · ${formatDurationCompact(r.summary.totalSec)}`
+          : '无专注'
+      lines.push(
+        `- ${r.date} 周${weekday}：专注 ${focus} · 完成 ${completeByDate.get(r.date) ?? 0} 项 · 记录 ${r.records} 条`,
+      )
+    }
+    const totalSec = weekRows.reduce((s, r) => s + r.summary.totalSec, 0)
+    const totalCount = weekRows.reduce((s, r) => s + r.summary.count, 0)
+    const totalDone = weekRows.reduce((s, r) => s + (completeByDate.get(r.date) ?? 0), 0)
+    const best = weekRows.reduce((b, r) => (r.summary.totalSec > b.summary.totalSec ? r : b), weekRows[0])
+    lines.push('', '## 汇总')
+    lines.push(`- 本周专注：${totalCount} 次 · ${formatDurationCompact(totalSec)}`)
+    if (best.summary.totalSec > 0) lines.push(`- 最专注的一天：${best.date}（${formatDurationCompact(best.summary.totalSec)}）`)
+    lines.push(`- 本周完成：${totalDone} 项`)
+    const res = await exportTextFile({
+      defaultName: `fantacy-weekly-${week[0]}.md`,
+      content: `${lines.join('\n')}\n`,
+      filterName: 'Markdown',
+      filterExt: 'md',
+    })
+    setReportMsg(res.canceled ? '已取消导出' : res.error ? `导出失败：${res.error}` : `周报已导出到 ${res.path}`)
   }
 
   return (
@@ -304,8 +347,21 @@ export function TimelinePanel() {
                   本周
                 </button>
               )}
+              <button
+                className="ghost-btn"
+                style={{ height: 26, padding: '0 10px', fontSize: 12 }}
+                title="导出当前一周的专注周报（Markdown）"
+                onClick={() => void onExportWeekReport()}
+              >
+                ⇪ 导出周报
+              </button>
             </div>
           </div>
+          {reportMsg && (
+            <div className="mb-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+              {reportMsg}
+            </div>
+          )}
           <div className="tl-week-grid">
             {weekRows.map((r) => {
               const weekday = WEEKDAY_LABELS[new Date(`${r.date}T00:00:00`).getDay()]

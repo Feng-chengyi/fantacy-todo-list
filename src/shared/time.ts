@@ -43,3 +43,15 @@ export function formatDurationAxis(totalSeconds: number): string {
   const hours = minutes / 60
   return `${Number.isInteger(hours) ? hours : hours.toFixed(1)}h`
 }
+
+/**
+ * 是否处于「夜间时段」（P2-2 日落自动切深色）：
+ * 支持跨零点区间（from=18, to=6 → 18:00 次日 06:00 为夜间）。
+ * from === to 视为全天夜间；非法输入回退 false。
+ */
+export function isNightHour(hour: number, from = 18, to = 6): boolean {
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) return false
+  if (from === to) return true
+  if (from < to) return hour >= from && hour < to
+  return hour >= from || hour < to
+}

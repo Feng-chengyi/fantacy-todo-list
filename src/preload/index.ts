@@ -28,6 +28,7 @@ import type {
   Task,
   TaskCollection,
   TaskStatus,
+  TextFileExportInput,
 } from '../shared/types'
 
 const api: RendererApi = {
@@ -76,6 +77,8 @@ const api: RendererApi = {
   importData: (): Promise<ImportResult> => ipcRenderer.invoke(IPC.dataImport),
   pickBgImage: (): Promise<AssetPickResult> => ipcRenderer.invoke(IPC.uiPickBgImage),
   clearBgImage: (): Promise<void> => ipcRenderer.invoke(IPC.uiClearBgImage),
+  exportTextFile: (input: TextFileExportInput): Promise<ExportResult> =>
+    ipcRenderer.invoke(IPC.fileExportText, input),
   commitFocusSession: (session: FocusSession): Promise<FocusCommitResult> =>
     ipcRenderer.invoke(IPC.focusCommit, session),
   deleteFocusSession: (sessionId: string): Promise<FullData> =>

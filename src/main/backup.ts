@@ -23,6 +23,31 @@ function focusedWindow(): BrowserWindow | undefined {
 }
 
 export function registerBackupIpc(): void {
+  // v3.2 通用文本导出（P2-1 主题 JSON / P2-4 时间轴周报共用）：
+  // 保存对话框 + 原子写，不触碰任何应用数据
+  ipcMain.handle(
+    IPC.fileExportText,
+    async (
+      _event,
+      input: { defaultName: string; content: string; filterName?: string; filterExt?: string },
+    ): Promise<ExportResult> => {
+      const ext = input.filterExt ?? 'txt'
+      const win = focusedWindow()
+      const options = {
+        defaultPath: input.defaultName,
+        filters: [{ name: input.filterName ?? ext.toUpperCase(), extensions: [ext] }],
+      }
+      const res = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options)
+      if (res.canceled || !res.filePath) return { canceled: true }
+      try {
+        atomicWrite(res.filePath, input.content)
+        return { canceled: false, path: res.filePath }
+      } catch (err) {
+        return { canceled: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    },
+  )
+
   ipcMain.handle(IPC.dataExport, async (): Promise<ExportResult> => {
     const defaultName = `fantacy-backup-${format(new Date(), 'yyyyMMdd')}.json`
     const win = focusedWindow()

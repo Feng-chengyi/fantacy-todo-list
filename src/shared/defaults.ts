@@ -29,16 +29,16 @@ export const DEFAULT_CONFIG: AppConfig = {
   activeTimer: null,
 }
 
-/** v3 主题色预设（设置面板色板 + 深色变体映射） */
-export const THEME_COLOR_PRESETS: { name: string; light: string; dark: string }[] = [
-  { name: '品牌紫', light: '#6c5ce7', dark: '#8b7cf7' },
-  { name: '海洋蓝', light: '#3b82f6', dark: '#60a5fa' },
-  { name: '青竹绿', light: '#22c55e', dark: '#4ade80' },
-  { name: '珊瑚红', light: '#e5484d', dark: '#f87171' },
-  { name: '琥珀橙', light: '#f5a623', dark: '#fbbf24' },
-  { name: '樱花粉', light: '#ec4899', dark: '#f472b6' },
-  { name: '青碧青', light: '#14b8a6', dark: '#2dd4bf' },
-  { name: '石墨灰', light: '#64748b', dark: '#94a3b8' },
+/** v3 主题色预设（设置面板色板 + 深色变体映射；dim = 低饱和次级变体，P1-6） */
+export const THEME_COLOR_PRESETS: { name: string; light: string; dark: string; dim: string }[] = [
+  { name: '品牌紫', light: '#6c5ce7', dark: '#8b7cf7', dim: '#9d94e8' },
+  { name: '海洋蓝', light: '#3b82f6', dark: '#60a5fa', dim: '#93c2fc' },
+  { name: '青竹绿', light: '#22c55e', dark: '#4ade80', dim: '#9ae6b4' },
+  { name: '珊瑚红', light: '#e5484d', dark: '#f87171', dim: '#f5a3a5' },
+  { name: '琥珀橙', light: '#f5a623', dark: '#fbbf24', dim: '#fbd38d' },
+  { name: '樱花粉', light: '#ec4899', dark: '#f472b6', dim: '#f9a8d4' },
+  { name: '青碧青', light: '#14b8a6', dark: '#2dd4bf', dim: '#99e6df' },
+  { name: '石墨灰', light: '#64748b', dark: '#94a3b8', dim: '#b7c1cf' },
 ]
 
 /**
@@ -58,6 +58,18 @@ export function accentPair(
   }
   // 无亮色值但有暗色值：亮色回落默认品牌紫
   return { light: explicitDark ? DEFAULT_CONFIG.themeColor ?? '#6c5ce7' : null, dark: explicitDark }
+}
+
+/** 按 accent 色值查预设 dim 次级变体（P1-6）；未命中回落 accent 本身 */
+export function accentDimOf(accent: string | null): string | null {
+  if (!accent) return null
+  const preset = THEME_COLOR_PRESETS.find(
+    (p) =>
+      p.light.toLowerCase() === accent.toLowerCase() ||
+      p.dark.toLowerCase() === accent.toLowerCase() ||
+      p.dim.toLowerCase() === accent.toLowerCase(),
+  )
+  return preset?.dim ?? accent
 }
 
 /** v3.1 主题预设包（N3.1）：一键切换外观组合（明暗 + 双色 accent + 背景色） */

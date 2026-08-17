@@ -42,6 +42,8 @@ export const IPC = {
   /** v3 主题背景图（选择落盘 / 清除） */
   uiPickBgImage: 'ui:pick-bg-image',
   uiClearBgImage: 'ui:clear-bg-image',
+  /** v3.2 通用文本导出（主题 JSON / 时间轴周报） */
+  fileExportText: 'file:export-text',
   // 桌宠 / 窗口
   petShowBubble: 'pet:show-bubble',
   petSetVisible: 'pet:set-visible',

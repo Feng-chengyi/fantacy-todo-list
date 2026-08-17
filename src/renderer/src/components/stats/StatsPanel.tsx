@@ -316,13 +316,28 @@ export function StatsPanel() {
   )
   const monthTotal = monthPoints.reduce((sum, p) => sum + p.seconds, 0)
 
-  /* ---- 模块 6：年度专注趋势（面积图，年份切换） ---- */
+  /* ---- 模块 6：年度专注趋势 + 年度回顾（P2-5，年份切换） ---- */
   const [trendYear, setTrendYear] = useState(nowYm.year)
   const yearPoints = useMemo(
-    () => yearlyMonthlyTrend(scopedSessions, trendYear).map((p) => ({ label: p.label, seconds: p.seconds })),
+    () => yearlyMonthlyTrend(scopedSessions, trendYear).map((p) => ({ month: p.month, label: p.label, seconds: p.seconds })),
     [scopedSessions, trendYear],
   )
   const yearTotal = yearPoints.reduce((sum, p) => sum + p.seconds, 0)
+
+  /** 年度回顾（P2-5）：当年会话快照 → 活跃天数 / 会话数 / 最佳月份 / 12 月热力强度 */
+  const yearSessions = useMemo(
+    () => scopedSessions.filter((s) => sessionLocalDate(s.startedAt).startsWith(`${trendYear}-`)),
+    [scopedSessions, trendYear],
+  )
+  const yearActiveDays = useMemo(
+    () => new Set(yearSessions.map((s) => sessionLocalDate(s.startedAt))).size,
+    [yearSessions],
+  )
+  const bestMonth = useMemo(
+    () => yearPoints.reduce((b, p) => (p.seconds > b.seconds ? p : b), yearPoints[0] ?? { label: '—', seconds: 0 }),
+    [yearPoints],
+  )
+  const yearMaxSec = bestMonth.seconds
 
   /* ---- 任务统计（原有） ---- */
   const stats = useMemo(() => computeStats(scopedTasks, overrides, { weekStart }), [scopedTasks, overrides, weekStart])
@@ -612,14 +627,62 @@ export function StatsPanel() {
         </p>
       </section>
 
-      {/* 模块 6：年度专注趋势（面积图） */}
+      {/* 模块 6：年度专注趋势 + 年度回顾（P2-5） */}
       <section className="stats-card">
         <div className="stats-card-head-row">
-          <h3 className="stats-card-title">年度专注趋势</h3>
+          <h3 className="stats-card-title">年度专注趋势 · 回顾</h3>
           <YearNav year={trendYear} onChange={setTrendYear} />
         </div>
         <TrendAreaChart points={yearPoints} unit="专注" />
         <p className="stat-hint">{trendYear} 年累计专注 {formatDurationCompact(yearTotal)}</p>
+
+        {/* 年度回顾：12 月热力条 + 关键数据（P2-5）；低强度档消费 --accent-dim（P1-6） */}
+        <div className="year-review-grid">
+          {yearPoints.map((p) => {
+            const level =
+              p.seconds <= 0
+                ? 0
+                : yearMaxSec > 0 && p.seconds >= yearMaxSec * 0.99
+                  ? 4
+                  : yearMaxSec > 0 && p.seconds >= yearMaxSec * 0.6
+                    ? 3
+                    : yearMaxSec > 0 && p.seconds >= yearMaxSec * 0.3
+                      ? 2
+                      : 1
+            return (
+              <div
+                key={p.month ?? p.label}
+                className="year-review-cell"
+                data-level={level}
+                title={`${trendYear} 年 ${p.label}：专注 ${formatDurationCompact(p.seconds)}`}
+              >
+                {p.label.replace('月', '')}
+              </div>
+            )
+          })}
+        </div>
+        <div className="year-review-stats">
+          <div className="year-review-stat" title={`${trendYear} 年全部会话累计时长`}>
+            <span className="year-review-num" style={{ color: 'var(--accent)' }}>
+              {formatDurationCompact(yearTotal)}
+            </span>
+            <span className="year-review-label">全年专注</span>
+          </div>
+          <div className="year-review-stat" title="有专注记录的天数">
+            <span className="year-review-num">{yearActiveDays}</span>
+            <span className="year-review-label">专注天数</span>
+          </div>
+          <div className="year-review-stat" title="全年专注会话次数">
+            <span className="year-review-num">{yearSessions.length}</span>
+            <span className="year-review-label">专注次数</span>
+          </div>
+          <div className="year-review-stat" title="累计专注时长最长的月份">
+            <span className="year-review-num">{bestMonth.seconds > 0 ? bestMonth.label : '—'}</span>
+            <span className="year-review-label">
+              {bestMonth.seconds > 0 ? `最佳月份 · ${formatDurationCompact(bestMonth.seconds)}` : '暂无数据'}
+            </span>
+          </div>
+        </div>
       </section>
 
       <p className="dash-section-title">任务统计</p>

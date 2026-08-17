@@ -125,6 +125,16 @@ export function clearBgImage(): Promise<void> {
   return window.api.clearBgImage()
 }
 
+/** v3.2 通用文本导出（主题 JSON / 时间轴周报共用） */
+export function exportTextFile(input: {
+  defaultName: string
+  content: string
+  filterName?: string
+  filterExt?: string
+}): Promise<{ canceled: boolean; path?: string; error?: string }> {
+  return window.api.exportTextFile(input)
+}
+
 export function onOpenPanel(cb: (panel: MainPanel) => void): () => void {
   return window.api.onOpenPanel(cb)
 }
