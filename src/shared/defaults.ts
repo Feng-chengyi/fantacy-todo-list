@@ -4,7 +4,7 @@
 import type { AppConfig, FullData, PetCharacterId, PetCharacterInfo, Priority, ShortcutAction, Task } from './types'
 
 /** 数据格式版本号（data.json / 备份文件共用），导入时校验兼容性 */
-export const DATA_VERSION = 1
+export const DATA_VERSION = 2
 
 export const DEFAULT_CONFIG: AppConfig = {
   petVisible: true,
@@ -27,12 +27,42 @@ export const DEFAULT_CONFIG: AppConfig = {
   timerQuotes: [],
   reminderDefaultTime: '09:00',
   reminderSystemNotification: true,
+  appearance: 'system',
+  themeColor: '#6c5ce7',
+  bgMode: 'plain',
+  bgColor: '#f7f8fa',
+  bgImage: null,
+  bgBlur: 0,
+  uiOpacity: 1,
+  activeTimer: null,
 }
+
+/** v3 主题色预设（设置面板色板 + 深色变体映射） */
+export const THEME_COLOR_PRESETS: { name: string; light: string; dark: string }[] = [
+  { name: '品牌紫', light: '#6c5ce7', dark: '#8b7cf7' },
+  { name: '海洋蓝', light: '#3b82f6', dark: '#60a5fa' },
+  { name: '青竹绿', light: '#22c55e', dark: '#4ade80' },
+  { name: '珊瑚红', light: '#e5484d', dark: '#f87171' },
+  { name: '琥珀橙', light: '#f5a623', dark: '#fbbf24' },
+  { name: '樱花粉', light: '#ec4899', dark: '#f472b6' },
+  { name: '青碧青', light: '#14b8a6', dark: '#2dd4bf' },
+  { name: '石墨灰', light: '#64748b', dark: '#94a3b8' },
+]
+
+/** v3 纯色背景预设 */
+export const BG_COLOR_PRESETS: string[] = [
+  '#f7f8fa',
+  '#eef2ff',
+  '#f0fdf4',
+  '#fef9ec',
+  '#fdf2f8',
+  '#17181c',
+]
 
 /** 全局快捷键默认绑定（Electron accelerator → 动作，主进程注册用） */
 export const DEFAULT_SHORTCUTS: ReadonlyArray<{ action: ShortcutAction; accelerator: string }> = [
   { action: 'newTask', accelerator: 'CommandOrControl+Shift+N' },
-  { action: 'openTimer', accelerator: 'CommandOrControl+Shift+T' },
+  { action: 'quickTimer', accelerator: 'CommandOrControl+Shift+T' },
   { action: 'openSearch', accelerator: 'CommandOrControl+Shift+K' },
 ]
 
@@ -114,6 +144,15 @@ export function mergeConfig(loaded: unknown): AppConfig {
   return merged
 }
 
+/** 系统收集箱（v3 内置待办集：不可删除、不可重命名，固定置顶） */
+export const INBOX_COLLECTION = {
+  id: 'inbox',
+  name: '收集箱',
+  isSystem: true,
+  sortOrder: 0,
+  createdAt: '1970-01-01T00:00:00.000Z',
+} as const
+
 export const DEFAULT_DATA: FullData = {
   version: DATA_VERSION,
   tasks: [],
@@ -121,6 +160,8 @@ export const DEFAULT_DATA: FullData = {
   goals: [],
   habits: [],
   sessions: [],
+  collections: [{ ...INBOX_COLLECTION }],
+  activities: [],
 }
 
 /** 优先级排序权重（越小越靠前） */

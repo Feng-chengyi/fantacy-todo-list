@@ -1,17 +1,16 @@
 /**
  * 待办任务仓库纯函数（无 IO / 无 React，可独立单测）。
  *
- * 口径（buildTaskRepository，待办首页）：
- * - 待办页 = 常驻任务仓库：每个任务仅一行，不按日期分组、不展开重复实例、
- *   不预生成任何未来日期任务（历史专注记录归时间轴页面）；
- * - 收集箱任务（date=null）归独立页面，不在此列；
- * - 联动侧栏筛选：all 不过滤，否则仅保留匹配状态的任务；
- * - 排序：pending → done → abandoned；同状态内按日期升序（习惯任务的锚点日期
- *   多为历史日期，天然靠前），再按开始时间 / 优先级 / 创建时间稳定排序。
+ * 口径（buildTaskRepository，v3 待办首页）：
+ * - 待办页 = 全量任务仓库：每个任务（含习惯/目标任务）仅一行，不按日期分组、
+ *   不展开重复实例、不预生成任何未来日期任务；
+ * - 联动状态筛选：all 不过滤，否则仅保留匹配状态的任务；
+ * - 排序：pending → done → abandoned；同状态内有日期按日期升序（无日期排最后），
+ *   再按开始时间 / 优先级 / 创建时间稳定排序。
  */
 import { PRIORITY_ORDER } from './defaults'
 import { timeToMinutes } from './time'
-import type { Task, TaskStatus } from './types'
+import type { Task, TaskStatus, TaskType } from './types'
 
 export type ListViewFilter = 'all' | TaskStatus
 
@@ -29,17 +28,26 @@ export function listDateLabel(date: string): string {
 
 const STATUS_RANK: Record<TaskStatus, number> = { pending: 0, done: 1, abandoned: 2 }
 
+/** 任务类型标签（v3：任务行 / 弹窗统一文案） */
+export const TASK_TYPE_LABELS: Record<TaskType, string> = {
+  normal: '普通',
+  habit: '习惯',
+  goal: '目标',
+}
+
 /**
- * 构建待办任务仓库：每个任务（含周期/习惯任务）仅一行，无日期分组、无重复展开。
+ * 构建待办任务仓库：每个任务（含习惯/目标任务）仅一行，无日期分组、无重复展开。
  */
 export function buildTaskRepository(tasks: Task[], filter: ListViewFilter): Task[] {
   return tasks
-    .filter((t) => t.date != null && (filter === 'all' || t.status === filter))
+    .filter((t) => filter === 'all' || t.status === filter)
     .sort((a, b) => {
       const sr = STATUS_RANK[a.status] - STATUS_RANK[b.status]
       if (sr !== 0) return sr
-      if ((a.date as string) < (b.date as string)) return -1
-      if ((a.date as string) > (b.date as string)) return 1
+      const ad = a.date ?? '9999-12-31'
+      const bd = b.date ?? '9999-12-31'
+      if (ad < bd) return -1
+      if (ad > bd) return 1
       const at = a.startTime ?? ''
       const bt = b.startTime ?? ''
       if (at !== bt) {

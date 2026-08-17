@@ -1,7 +1,7 @@
 /**
  * 全局快捷键（主进程）：注册默认三键 → 转发 app:shortcut 给主窗口渲染进程分发。
  * - CommandOrControl+Shift+N → newTask
- * - CommandOrControl+Shift+T → openTimer
+ * - CommandOrControl+Shift+T → quickTimer（快捷计时：收集箱临时任务 + 直接开表）
  * - CommandOrControl+Shift+K → openSearch
  * 注册失败仅 console.warn（不抛错，避免因系统占用导致应用启动失败）。
  */

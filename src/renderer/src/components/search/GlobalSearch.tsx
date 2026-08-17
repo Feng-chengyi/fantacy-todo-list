@@ -1,7 +1,6 @@
 /**
  * 全局搜索弹层：按名称 / 标签 / 描述模糊检索任务（shared/search.searchTasks）。
- * 点击结果：关闭编辑弹窗后打开该任务编辑，并定位到其日期（收集箱项打开收集箱）。
- * Esc / 点遮罩关闭。
+ * 点击结果：关闭编辑弹窗后跳转待办页并打开该任务编辑。Esc / 点遮罩关闭。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Task } from '../../../../shared/types'
@@ -15,7 +14,6 @@ export function GlobalSearch() {
   const setShowSearch = useUiStore((s) => s.setShowSearch)
   const closeEditor = useUiStore((s) => s.closeEditor)
   const openEdit = useUiStore((s) => s.openEdit)
-  const setSelectedDate = useUiStore((s) => s.setSelectedDate)
   const setPage = useUiStore((s) => s.setPage)
   const tasks = useTaskStore((s) => s.tasks)
 
@@ -48,13 +46,8 @@ export function GlobalSearch() {
   const open = (task: Task): void => {
     closeEditor()
     openEdit(task)
-    if (task.date == null) {
-      setPage('inbox')
-    } else {
-      // 有日期任务 → 时间轴页面定位到对应日期
-      setPage('timeline')
-      setSelectedDate(task.date)
-    }
+    // v3：所有任务统一在待办页管理，搜索命中后跳转待办页打开编辑弹窗
+    setPage('todo')
     setShowSearch(false)
   }
 

@@ -1,14 +1,18 @@
 /**
- * 任务 + 覆盖状态 store。数据权威源在 main，经 services/ipc 单向同步。
+ * 任务 + 待办集 + 时间轴流水 store。数据权威源在 main，经 services/ipc 单向同步。
+ * v3：习惯/目标为任务类型标签；收集箱并入待办集体系（系统内置首项）。
  */
 import { create } from 'zustand'
+import { INBOX_ID } from '../../../shared/collections'
 import type {
+  ActivityLog,
   CreateTaskInput,
   FocusSession,
   FullData,
   OverrideAction,
   RepeatOverride,
   Task,
+  TaskCollection,
   TaskStatus,
 } from '../../../shared/types'
 import * as api from '../services/ipc'
@@ -18,6 +22,10 @@ interface TaskState {
   overrides: RepeatOverride[]
   /** 专注计时会话记录（统计的权威数据源） */
   sessions: FocusSession[]
+  /** v3 待办集列表（收集箱固定首项） */
+  collections: TaskCollection[]
+  /** v3 时间轴操作流水 */
+  activities: ActivityLog[]
   loaded: boolean
   /** 应用一份已加载的全量数据（与 loadData 一次往返后由各 store 分发共用，QA O3） */
   applyData: (data: FullData) => void
@@ -38,28 +46,45 @@ interface TaskState {
   clearFocusSessions: (from: string, to: string) => Promise<void>
   /** 重置全部专注统计 */
   resetFocusStats: () => Promise<void>
+  /** v3 待办集 CRUD */
+  createCollection: (name: string) => Promise<TaskCollection>
+  renameCollection: (id: string, name: string) => Promise<TaskCollection>
+  deleteCollection: (id: string) => Promise<void>
+  reorderCollections: (orderedIds: string[]) => Promise<void>
+  /** v3 任务批量操作 */
+  batchMoveTasks: (taskIds: string[], collectionId: string) => Promise<void>
+  batchSetStatus: (taskIds: string[], status: TaskStatus) => Promise<void>
+  batchDeleteTasks: (taskIds: string[]) => Promise<void>
+}
+
+function snapshot(data: FullData): Pick<TaskState, 'tasks' | 'overrides' | 'sessions' | 'collections' | 'activities'> {
+  return {
+    tasks: data.tasks,
+    overrides: data.overrides,
+    sessions: data.sessions ?? [],
+    collections: data.collections ?? [],
+    activities: data.activities ?? [],
+  }
 }
 
 export const useTaskStore = create<TaskState>((set) => ({
   tasks: [],
   overrides: [],
   sessions: [],
+  collections: [],
+  activities: [],
   loaded: false,
 
   applyData: (data) =>
     set({
-      tasks: data.tasks,
-      overrides: data.overrides,
-      sessions: data.sessions ?? [],
+      ...snapshot(data),
       loaded: true,
     }),
 
   load: async () => {
     const data = await api.loadData()
     set({
-      tasks: data.tasks,
-      overrides: data.overrides,
-      sessions: data.sessions ?? [],
+      ...snapshot(data),
       loaded: true,
     })
   },
@@ -134,16 +159,61 @@ export const useTaskStore = create<TaskState>((set) => ({
 
   deleteFocusSession: async (sessionId) => {
     const data = await api.deleteFocusSession(sessionId)
-    set({ tasks: data.tasks, sessions: data.sessions ?? [] })
+    set(snapshot(data))
   },
 
   clearFocusSessions: async (from, to) => {
     const data = await api.clearFocusSessions(from, to)
-    set({ tasks: data.tasks, sessions: data.sessions ?? [] })
+    set(snapshot(data))
   },
 
   resetFocusStats: async () => {
     const data = await api.resetFocusStats()
-    set({ tasks: data.tasks, sessions: data.sessions ?? [] })
+    set(snapshot(data))
+  },
+
+  createCollection: async (name) => {
+    const collection = await api.createCollection({ name })
+    set((s) => ({ collections: [...s.collections, collection] }))
+    return collection
+  },
+
+  renameCollection: async (id, name) => {
+    const collection = await api.renameCollection(id, name)
+    set((s) => ({ collections: s.collections.map((c) => (c.id === id ? collection : c)) }))
+    return collection
+  },
+
+  deleteCollection: async (id) => {
+    const data = await api.deleteCollection(id)
+    set(snapshot(data))
+  },
+
+  reorderCollections: async (orderedIds) => {
+    await api.reorderCollections(orderedIds)
+    set((s) => ({
+      collections: [...s.collections].sort((a, b) => {
+        if (a.isSystem !== b.isSystem) return a.isSystem ? -1 : 1
+        const ai = orderedIds.indexOf(a.id)
+        const bi = orderedIds.indexOf(b.id)
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+      }),
+    }))
+  },
+
+  batchMoveTasks: async (taskIds, collectionId) => {
+    const target = collectionId || INBOX_ID
+    const data = await api.batchMoveTasks(taskIds, target)
+    set(snapshot(data))
+  },
+
+  batchSetStatus: async (taskIds, status) => {
+    const data = await api.batchSetStatus(taskIds, status)
+    set(snapshot(data))
+  },
+
+  batchDeleteTasks: async (taskIds) => {
+    const data = await api.batchDeleteTasks(taskIds)
+    set(snapshot(data))
   },
 }))

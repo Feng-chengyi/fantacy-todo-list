@@ -10,7 +10,6 @@ import type {
   FocusCommitResult,
   FocusSession,
   FullData,
-  Habit,
   ImportResult,
   MainPanel,
   OverrideAction,
@@ -24,6 +23,7 @@ import type {
   RepeatOverride,
   ShortcutAction,
   Task,
+  TaskCollection,
   TaskStatus,
   TimerAssetKind,
   TimerAssetPickResult,
@@ -83,20 +83,49 @@ export function deleteGoal(id: string): Promise<void> {
   return window.api.deleteGoal(id)
 }
 
-export function createHabit(input: { title: string }): Promise<Habit> {
-  return window.api.createHabit(input)
+/** v3 待办集：新增 */
+export function createCollection(input: { name: string }): Promise<TaskCollection> {
+  return window.api.createCollection(input)
 }
 
-export function deleteHabit(id: string): Promise<void> {
-  return window.api.deleteHabit(id)
+/** v3 待办集：重命名（系统收集箱会被 main 拒绝） */
+export function renameCollection(id: string, name: string): Promise<TaskCollection> {
+  return window.api.renameCollection(id, name)
 }
 
-export function toggleHabit(id: string, date: string): Promise<Habit> {
-  return window.api.toggleHabit(id, date)
+/** v3 待办集：删除（内部任务回流收集箱），返回最新全量数据 */
+export function deleteCollection(id: string): Promise<FullData> {
+  return window.api.deleteCollection(id)
 }
 
-export function setHabitArchived(id: string, archived: boolean): Promise<Habit> {
-  return window.api.setHabitArchived(id, archived)
+/** v3 待办集：拖拽排序 */
+export function reorderCollections(orderedIds: string[]): Promise<void> {
+  return window.api.reorderCollections(orderedIds)
+}
+
+/** v3 任务批量：移入待办集 */
+export function batchMoveTasks(taskIds: string[], collectionId: string): Promise<FullData> {
+  return window.api.batchMoveTasks(taskIds, collectionId)
+}
+
+/** v3 任务批量：标记状态 */
+export function batchSetStatus(taskIds: string[], status: TaskStatus): Promise<FullData> {
+  return window.api.batchSetStatus(taskIds, status)
+}
+
+/** v3 任务批量：删除 */
+export function batchDeleteTasks(taskIds: string[]): Promise<FullData> {
+  return window.api.batchDeleteTasks(taskIds)
+}
+
+/** v3 主题：选择背景图片并落盘 */
+export function pickBgImage(): Promise<TimerAssetPickResult> {
+  return window.api.pickBgImage()
+}
+
+/** v3 主题：清除背景图片 */
+export function clearBgImage(): Promise<void> {
+  return window.api.clearBgImage()
 }
 
 export function onOpenPanel(cb: (panel: MainPanel) => void): () => void {
@@ -208,12 +237,4 @@ export function clearFocusSessions(from: string, to: string): Promise<FullData> 
 /** 重置全部专注统计，返回最新全量数据 */
 export function resetFocusStats(): Promise<FullData> {
   return window.api.resetFocusStats()
-}
-
-export function minimize(): Promise<void> {
-  return window.api.minimize()
-}
-
-export function close(): Promise<void> {
-  return window.api.close()
 }

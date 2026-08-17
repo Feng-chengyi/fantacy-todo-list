@@ -8,8 +8,19 @@ export type TaskStatus = 'pending' | 'done' | 'abandoned'
 export type RepeatType = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'
 export type OverrideAction = 'done' | 'skipped'
 
+/**
+ * 任务类型（v3 统一任务体系）：
+ * - normal 普通待办（单次执行）
+ * - habit 习惯任务（周期循环 + 每日打卡，原独立习惯模块降格为类型标签）
+ * - goal 目标任务（长期推进 + 总进度 + 截止倒计时）
+ */
+export type TaskType = 'normal' | 'habit' | 'goal'
+
+/** 计时类型：none 不计时 / stopwatch 正向计时 / countdown 倒计时 */
+export type TimerKind = 'none' | 'stopwatch' | 'countdown'
+
 /** 主窗口可调起的面板标识（桌宠右键快捷入口 / window:open-panel） */
-export type MainPanel = 'today' | 'stats' | 'habits' | 'goals' | 'pomodoro' | 'settings' | 'timer'
+export type MainPanel = 'today' | 'collections' | 'timeline' | 'stats' | 'goals' | 'settings'
 
 /** 重复规则（P0-04） */
 export interface RepeatRule {
@@ -42,7 +53,7 @@ export interface Task {
   title: string
   description?: string
   priority: Priority
-  /** 安排日期 YYYY-MM-DD；null = 收集箱 */
+  /** 安排/截止日期 YYYY-MM-DD；null = 无日期 */
   date: string | null
   status: TaskStatus
   /** ISO 8601 */
@@ -65,6 +76,43 @@ export interface Task {
   durationSec?: number
   /** 任务提醒（缺省/空 = 不提醒） */
   reminder?: TaskReminder | null
+  /** 任务类型（v3：普通 / 习惯 / 目标；旧数据缺省 = normal） */
+  taskType?: TaskType
+  /** 所属待办集 ID（v3：未归类 = 系统收集箱 INBOX_ID） */
+  collectionId?: string
+  /** 习惯打卡日期列表 YYYY-MM-DD（taskType=habit 专用） */
+  habitCheckins?: string[]
+  /** 目标总进度 0-100（taskType=goal 专用） */
+  progressValue?: number
+  /** 计时类型（v3：none / stopwatch / countdown；缺省 = stopwatch） */
+  timerKind?: TimerKind
+  /** 倒计时时长（秒，timerKind=countdown 专用） */
+  countdownSec?: number
+}
+
+/** 待办集（项目/分组容器，v3 新增） */
+export interface TaskCollection {
+  id: string
+  name: string
+  /** 系统内置（收集箱固定 true：不可删除、不可重命名） */
+  isSystem: boolean
+  /** 排序权重（越小越靠前；收集箱固定置顶 0） */
+  sortOrder: number
+  /** ISO 8601 */
+  createdAt: string
+}
+
+/** 时间轴操作记录条目（v3 新增：只增不改的流水日志） */
+export interface ActivityLog {
+  id: string
+  /** 操作类型 */
+  type: 'create' | 'complete' | 'reopen' | 'delete' | 'timer' | 'move' | 'edit' | 'checkin'
+  /** 关联任务标题快照（任务删除后仍可读） */
+  taskTitle: string
+  /** 补充说明（如「移入 收集箱」「专注 25 分钟」） */
+  detail?: string
+  /** ISO 8601 */
+  createdAt: string
 }
 
 /** 重复实例覆盖（单日独立完成/跳过） */
@@ -161,17 +209,22 @@ export interface AppConfig {
   reminderDefaultTime?: string
   /** 提醒是否同时弹系统通知（缺省 true） */
   reminderSystemNotification?: boolean
-}
-
-/** 业务数据全文（data.json） */
-export interface FullData {
-  version: number
-  tasks: Task[]
-  overrides: RepeatOverride[]
-  goals: CountdownGoal[]
-  habits: Habit[]
-  /** 专注计时会话记录（统计的权威数据源；旧数据缺省由 store 回填 []） */
-  sessions: FocusSession[]
+  /** v3 主题外观：light 亮色 / dark 暗色 / system 跟随系统 */
+  appearance?: 'light' | 'dark' | 'system'
+  /** v3 主题色（hex，作用于全局主色/按钮/选中态；缺省 = 品牌紫） */
+  themeColor?: string
+  /** v3 背景模式：plain 纯色 / image 图片 */
+  bgMode?: 'plain' | 'image'
+  /** v3 纯色背景色（hex） */
+  bgColor?: string
+  /** v3 背景图（本地 assets 落盘后的 data URL；null = 未设置） */
+  bgImage?: string | null
+  /** v3 背景模糊度 0-40（px） */
+  bgBlur?: number
+  /** v3 界面透明度 0.5-1（弹窗/卡片等表面组件） */
+  uiOpacity?: number
+  /** v3 进行中计时器快照（页面刷新/重启后恢复计时进度；null = 无计时） */
+  activeTimer?: TimerState | null
 }
 
 /** 新建任务入参 */
@@ -186,6 +239,27 @@ export interface CreateTaskInput {
   startTime?: string
   endTime?: string
   reminder?: TaskReminder | null
+  /** v3：任务类型（缺省 normal） */
+  taskType?: TaskType
+  /** v3：所属待办集（缺省收集箱） */
+  collectionId?: string
+  /** v3：计时时长（秒，倒计时专用） */
+  countdownSec?: number
+}
+
+/** 业务数据全文（data.json） */
+export interface FullData {
+  version: number
+  tasks: Task[]
+  overrides: RepeatOverride[]
+  goals: CountdownGoal[]
+  habits: Habit[]
+  /** 专注计时会话记录（统计的权威数据源；旧数据缺省由 store 回填 []） */
+  sessions: FocusSession[]
+  /** 待办集列表（v3；收集箱为系统内置首项；旧数据缺省由迁移回填） */
+  collections: TaskCollection[]
+  /** 时间轴操作记录（v3；上限保留最近 ACTIVITY_LOG_CAP 条） */
+  activities: ActivityLog[]
 }
 
 /** 日历上的一次任务实例（含重复展开结果） */
@@ -354,7 +428,7 @@ export interface TimerState {
 }
 
 /** 全局快捷键动作（主进程 globalShortcut → 渲染进程 app:shortcut） */
-export type ShortcutAction = 'newTask' | 'openTimer' | 'openSearch'
+export type ShortcutAction = 'newTask' | 'quickTimer' | 'openSearch'
 
 /** 搜索结果（任务 + 匹配得分，得分越小越靠前） */
 export interface SearchResult {
@@ -386,10 +460,20 @@ export interface RendererApi {
   clearOverride(taskId: string, occurrenceDate: string): Promise<void>
   createGoal(input: { title: string; targetDate: string; category?: string; color?: string }): Promise<CountdownGoal>
   deleteGoal(id: string): Promise<void>
-  createHabit(input: { title: string }): Promise<Habit>
-  deleteHabit(id: string): Promise<void>
-  toggleHabit(id: string, date: string): Promise<Habit>
-  setHabitArchived(id: string, archived: boolean): Promise<Habit>
+  /** v3 待办集：新增（收集箱不可新建重名由 UI 约束，main 校验系统项不可改删） */
+  createCollection(input: { name: string }): Promise<TaskCollection>
+  /** v3 待办集：重命名（系统收集箱拒绝） */
+  renameCollection(id: string, name: string): Promise<TaskCollection>
+  /** v3 待办集：删除（内部任务自动回流收集箱；系统收集箱拒绝） */
+  deleteCollection(id: string): Promise<FullData>
+  /** v3 待办集：拖拽排序（orderedIds 为自定义集合的新顺序） */
+  reorderCollections(orderedIds: string[]): Promise<void>
+  /** v3 任务批量：移入待办集（collectionId 为空 = 移回收集箱） */
+  batchMoveTasks(taskIds: string[], collectionId: string): Promise<FullData>
+  /** v3 任务批量：标记状态 */
+  batchSetStatus(taskIds: string[], status: TaskStatus): Promise<FullData>
+  /** v3 任务批量：删除 */
+  batchDeleteTasks(taskIds: string[]): Promise<FullData>
   getConfig(): Promise<AppConfig>
   setConfig(patch: Partial<AppConfig>): Promise<AppConfig>
   showBubble(text: string): Promise<void>
@@ -403,6 +487,10 @@ export interface RendererApi {
   timerClearAsset(kind: TimerAssetKind): Promise<void>
   /** 计时器：启动时加载已保存的背景图/BGM data URL */
   timerLoadAssets(): Promise<TimerAssets>
+  /** v3 主题：选择背景图片并落盘，返回 data URL（canceled = 用户取消） */
+  pickBgImage(): Promise<TimerAssetPickResult>
+  /** v3 主题：清除背景图片（删除落盘文件） */
+  clearBgImage(): Promise<void>
   /** 原子提交一次专注会话（追加 session + 累加绑定任务 durationSec，单次落盘） */
   commitFocusSession(session: FocusSession): Promise<FocusCommitResult>
   /** 删除单条专注会话（连带扣减绑定任务 durationSec），返回最新全量数据 */
@@ -423,15 +511,13 @@ export interface RendererApi {
   petPackExport(id: string): Promise<PetPackExportResult>
   /** 宠物包：从用户选择的 .petpack 导入；校验失败返回 error 不落盘 */
   petPackImport(): Promise<PetPackImportResult>
-  minimize(): Promise<void>
-  close(): Promise<void>
   /** 订阅主进程推送的「打开面板」请求 */
   onOpenPanel(cb: (panel: MainPanel) => void): () => void
   /** 订阅主进程推送的「数据已变更」通知（触发 store 重载同步） */
   onDataChanged(cb: () => void): () => void
   /** 订阅主进程推送的「配置已变更」通知（桌宠右键/托盘等跨入口写配置后同步 configStore） */
   onConfigChanged(cb: (config: AppConfig) => void): () => void
-  /** 订阅主进程推送的全局快捷键动作（newTask / openTimer / openSearch） */
+  /** 订阅主进程推送的全局快捷键动作（newTask / quickTimer / openSearch） */
   onShortcut(cb: (action: ShortcutAction) => void): () => void
 }
 

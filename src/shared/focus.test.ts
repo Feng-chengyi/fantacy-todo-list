@@ -31,7 +31,7 @@ function task(over: Partial<Task> & { id: string }): Task {
 }
 
 function fullData(tasks: Task[], sessions: FocusSession[] = []): FullData {
-  return { version: 1, tasks, overrides: [], goals: [], habits: [], sessions }
+  return { version: 1, tasks, overrides: [], goals: [], habits: [], sessions, collections: [], activities: [] }
 }
 
 function session(over: Partial<FocusSession> & { id: string }): FocusSession {

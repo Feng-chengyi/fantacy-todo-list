@@ -47,11 +47,11 @@ describe('buildTaskRepository 任务仓库', () => {
     expect(repo[0].id).toBe('h1')
   })
 
-  it('收集箱任务（date=null）不在仓库中', () => {
+  it('v3 全量仓库：无日期任务（收集箱）同样在仓库中，排序靠后', () => {
     const inbox = task({ id: 'i1', date: null })
     const dated = task({ id: 'd1', date: TODAY })
     const repo = buildTaskRepository([inbox, dated], 'all')
-    expect(repo.map((t) => t.id)).toEqual(['d1'])
+    expect(repo.map((t) => t.id)).toEqual(['d1', 'i1'])
   })
 
   it('筛选：all 全量，指定状态仅保留匹配项', () => {

@@ -1,60 +1,98 @@
 /**
- * 任务仓库行（待办首页桌面行列表）：名称｜类型标签｜提醒时间｜进度信息｜计时操作。
- * 无勾选框（计时会话即完成记录）；hover 高亮；右键唤出任务菜单；点击打开编辑。
+ * v3 任务仓库行（待办页/待办集页共用）：勾选完成｜标题｜类型标签｜分类｜提醒｜
+ * 进度信息（习惯打卡 / 目标圆环+截止倒计时 / 累计专注）｜计时操作。
+ * 计时启动后由悬浮窗接管走时；完成自动停止计时（时长保留）。
  */
 import type { MouseEvent } from 'react'
 import type { Task } from '../../../../shared/types'
 import { taskColor } from '../../../../shared/defaults'
 import { isSameTimerInstance } from '../../../../shared/focus'
+import { TASK_TYPE_LABELS } from '../../../../shared/listView'
+import { daysUntil } from '../../../../shared/countdown'
 import { formatDurationMinutes } from '../../../../shared/time'
 import { todayStr } from '../../../../shared/date'
 import { useUiStore } from '../../stores/uiStore'
+import { useTaskStore } from '../../stores/taskStore'
 import { commitFocus, switchTimer } from '../../services/focus'
 import { Stopwatch } from '../task/Stopwatch'
 
-/** 周期任务截止日期剩余天数（正 = 未来，0 = 当天，负 = 已过） */
-export function daysUntil(date: string, today: string): number {
-  const a = new Date(`${date}T00:00:00`).getTime()
-  const b = new Date(`${today}T00:00:00`).getTime()
-  return Math.round((a - b) / 86400000)
-}
-
-/** 进度信息：周期任务展示今日专注 + 截止倒计时；普通任务展示累计专注 */
+/** 进度信息：习惯展示连续打卡；目标展示截止倒计时；普通展示累计专注 */
 function progressLabel(task: Task, todaySec: number, today: string): string {
   const parts: string[] = []
-  if (task.repeat) {
-    if (todaySec > 0) parts.push(`今日 ${formatDurationMinutes(todaySec)}`)
-    if (task.repeat.endDate) {
-      const left = daysUntil(task.repeat.endDate, today)
+  const type = task.taskType ?? 'normal'
+  if (type === 'goal') {
+    if (task.date) {
+      const left = daysUntil(task.date, today)
       if (left > 0) parts.push(`距截止 ${left} 天`)
       else if (left === 0) parts.push('今天截止')
-      else parts.push('已到截止日')
+      else parts.push('已过截止日')
     }
+    if (task.durationSec != null && task.durationSec > 0) {
+      parts.push(`累计 ${formatDurationMinutes(task.durationSec)}`)
+    }
+  } else if (task.repeat) {
+    if (todaySec > 0) parts.push(`今日 ${formatDurationMinutes(todaySec)}`)
   } else if (task.durationSec != null && task.durationSec > 0) {
     parts.push(`累计 ${formatDurationMinutes(task.durationSec)}`)
   }
   return parts.join(' · ')
 }
 
+/** 习惯连续打卡天数（含今天） */
+function habitStreak(task: Task, today: string): number {
+  const set = new Set(task.habitCheckins ?? [])
+  if (set.size === 0) return 0
+  let streak = 0
+  const d = new Date(`${today}T00:00:00`)
+  // 今天未打卡时从昨天起算（打断不向前虚增）
+  if (!set.has(today)) d.setDate(d.getDate() - 1)
+  for (;;) {
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    if (!set.has(key)) break
+    streak += 1
+    d.setDate(d.getDate() - 1)
+  }
+  return streak
+}
+
 export function TaskRepoRow({ task, todaySec }: { task: Task; todaySec: number }) {
   const openEdit = useUiStore((s) => s.openEdit)
   const setContextMenu = useUiStore((s) => s.setContextMenu)
-  const openTimerPanel = useUiStore((s) => s.openTimerPanel)
   const timer = useUiStore((s) => s.timer)
+  const setStatus = useTaskStore((s) => s.setStatus)
+  const updateTask = useTaskStore((s) => s.updateTask)
 
   const today = todayStr()
+  const type = task.taskType ?? 'normal'
   const done = task.status === 'done'
   const abandoned = task.status === 'abandoned'
-  // 计时实例口径与计时面板一致：周期任务任务级（null），非周期任务用其日期
+  // 计时实例口径：周期/习惯任务任务级（null），非周期用其日期
   const occurrenceDate = task.repeat ? null : (task.date ?? null)
   const isTiming = !!timer && isSameTimerInstance(timer, task.id, occurrenceDate)
   const progress = progressLabel(task, todaySec, today)
+  const checkedToday = (task.habitCheckins ?? []).includes(today)
 
   const onContextMenu = (e: MouseEvent): void => {
     e.preventDefault()
     e.stopPropagation()
     setContextMenu({ task, x: e.clientX, y: e.clientY })
   }
+
+  /** 勾选完成 / 撤销完成；完成时自动停止计时（已产生时长保留） */
+  const toggleDone = (): void => {
+    if (type === 'habit') return
+    if (!done && timer && isTiming) void commitFocus()
+    void setStatus(task.id, done ? 'pending' : 'done')
+  }
+
+  /** 习惯打卡 / 撤销今日打卡 */
+  const toggleCheckin = (): void => {
+    const checkins = task.habitCheckins ?? []
+    const next = checkedToday ? checkins.filter((d) => d !== today) : [...checkins, today]
+    void updateTask(task.id, { habitCheckins: next })
+  }
+
+  const canTime = type !== 'goal' && (task.timerKind ?? 'stopwatch') !== 'none' && !done && !abandoned
 
   return (
     <div
@@ -65,10 +103,36 @@ export function TaskRepoRow({ task, todaySec }: { task: Task; todaySec: number }
     >
       <div className="task-card-row">
         <span className="task-priority-bar" style={{ background: taskColor(task) }} />
+        {type === 'habit' ? (
+          <button
+            className={`check ${checkedToday ? 'checked' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation()
+              toggleCheckin()
+            }}
+            title={checkedToday ? '撤销今日打卡' : '今日打卡'}
+          >
+            {checkedToday ? '✓' : ''}
+          </button>
+        ) : (
+          <button
+            className={`check ${done ? 'checked' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation()
+              toggleDone()
+            }}
+            title={done ? '撤销完成' : '完成'}
+          >
+            {done ? '✓' : ''}
+          </button>
+        )}
         <span className="task-title">{task.title}</span>
-        <span className={`type-tag ${task.repeat ? 'habit' : 'normal'}`}>
-          {task.repeat ? '习惯' : '普通'}
-        </span>
+        {type === 'goal' && (
+          <span className="goal-ring" style={{ ['--p' as string]: String(task.progressValue ?? 0) }}>
+            <span>{Math.round(task.progressValue ?? 0)}</span>
+          </span>
+        )}
+        <span className={`type-tag ${type !== 'normal' ? 'habit' : ''}`}>{TASK_TYPE_LABELS[type]}</span>
         {task.category?.trim() && (
           <span className="task-category">
             <span className="task-category-dot" style={{ background: taskColor(task) }} />
@@ -76,6 +140,9 @@ export function TaskRepoRow({ task, todaySec }: { task: Task; todaySec: number }
           </span>
         )}
         {task.reminder?.time && <span className="repo-reminder">⏰ {task.reminder.time}</span>}
+        {type === 'habit' && habitStreak(task, today) > 0 && (
+          <span className="repo-progress">🔥 连续 {habitStreak(task, today)} 天</span>
+        )}
         {progress && <span className="repo-progress">{progress}</span>}
         {isTiming ? (
           <>
@@ -92,19 +159,17 @@ export function TaskRepoRow({ task, todaySec }: { task: Task; todaySec: number }
             </button>
           </>
         ) : (
-          !done &&
-          !abandoned && (
+          canTime && (
             <button
               className="mini-btn timer-btn"
               onClick={(e) => {
                 e.stopPropagation()
-                // 先提交旧计时再开新计时（不丢上一任务时长），并定向到计时面板
+                // 先提交旧计时再开新计时（不丢上一任务时长），走时由悬浮窗接管
                 void switchTimer(task.id, occurrenceDate)
-                openTimerPanel()
               }}
-              title="开始计时"
+              title={(task.timerKind ?? 'stopwatch') === 'countdown' ? '开始倒计时' : '开始计时'}
             >
-              ▶ 开始计时
+              {(task.timerKind ?? 'stopwatch') === 'countdown' ? '⏳ 倒计时' : '▶ 开始计时'}
             </button>
           )
         )}

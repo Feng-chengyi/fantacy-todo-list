@@ -85,4 +85,36 @@ export function registerTimerAssetsIpc(): void {
     const cfg = store.getConfig()
     return { bgUrl: toDataUrl(cfg.timerBgPath), bgmUrl: toDataUrl(cfg.timerBgmPath) }
   })
+
+  // ============ v3 主题背景图（ui:pick-bg-image / ui:clear-bg-image） ============
+
+  ipcMain.handle(IPC.uiPickBgImage, (): Promise<TimerAssetPickResult> => {
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+    const options = {
+      filters: [FILTERS.bg],
+      properties: ['openFile' as const],
+    }
+    return (async (): Promise<TimerAssetPickResult> => {
+      const res = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+      if (res.canceled || res.filePaths.length === 0) return { canceled: true }
+      const src = res.filePaths[0]
+      const ext = extname(src)
+      if (!isAssetExt(ext)) return { canceled: true }
+      if (statSync(src).size > MAX_ASSET_BYTES) {
+        void dialog.showErrorBox('文件过大', '背景图需小于 20MB。')
+        return { canceled: true }
+      }
+      mkdirSync(store.assetsDir, { recursive: true })
+      const dest = join(store.assetsDir, `theme-bg${ext.toLowerCase()}`)
+      removeOldAssets('theme-bg', dest)
+      copyFileSync(src, dest)
+      store.setConfig({ bgImage: toDataUrl(dest) ?? null })
+      return { canceled: false, dataUrl: toDataUrl(dest) ?? undefined }
+    })()
+  })
+
+  ipcMain.handle(IPC.uiClearBgImage, (): void => {
+    removeOldAssets('theme-bg')
+    store.setConfig({ bgImage: null })
+  })
 }

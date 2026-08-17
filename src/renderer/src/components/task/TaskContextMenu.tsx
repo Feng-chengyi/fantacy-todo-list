@@ -11,7 +11,6 @@ export function TaskContextMenu() {
   const contextMenu = useUiStore((s) => s.contextMenu)
   const setContextMenu = useUiStore((s) => s.setContextMenu)
   const openEdit = useUiStore((s) => s.openEdit)
-  const openTimerPanel = useUiStore((s) => s.openTimerPanel)
   const timer = useUiStore((s) => s.timer)
   const updateTask = useTaskStore((s) => s.updateTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
@@ -49,8 +48,8 @@ export function TaskContextMenu() {
       : {
           label: '开始计时',
           onClick: () => {
+            // 走时由悬浮窗接管，无需跳转页面
             void switchTimer(task.id, occurrenceDate)
-            openTimerPanel()
           },
         },
     { label: '编辑', onClick: () => openEdit(task) },

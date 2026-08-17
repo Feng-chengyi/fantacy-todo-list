@@ -30,9 +30,9 @@ import {
 } from '../../../../shared/date'
 import { formatDurationCompact } from '../../../../shared/time'
 import { sessionLocalDate } from '../../../../shared/focus'
+import { INBOX_ID } from '../../../../shared/collections'
 import { useConfigStore } from '../../stores/configStore'
 import { useTaskStore } from '../../stores/taskStore'
-import { useHabitStore } from '../../stores/habitStore'
 import { DonutChart } from './DonutChart'
 import { HourBarChart } from './HourBarChart'
 import { TrendAreaChart } from './TrendAreaChart'
@@ -144,13 +144,25 @@ export function StatsPanel() {
   const tasks = useTaskStore((s) => s.tasks)
   const overrides = useTaskStore((s) => s.overrides)
   const sessions = useTaskStore((s) => s.sessions)
+  const collections = useTaskStore((s) => s.collections)
   const weekStart = useConfigStore((s) => s.weekStart)
-  const habits = useHabitStore((s) => s.habits)
   const deleteFocusSession = useTaskStore((s) => s.deleteFocusSession)
   const clearFocusSessions = useTaskStore((s) => s.clearFocusSessions)
   const resetFocusStats = useTaskStore((s) => s.resetFocusStats)
 
   const today = todayStr()
+
+  /* ---- v3 统计维度：全局 / 指定待办集（过滤任务与专注会话） ---- */
+  const [scopeId, setScopeId] = useState('')
+  const scopedTasks = useMemo(
+    () => (scopeId ? tasks.filter((t) => (t.collectionId ?? INBOX_ID) === scopeId) : tasks),
+    [tasks, scopeId],
+  )
+  const scopedSessions = useMemo(() => {
+    if (!scopeId) return sessions
+    const ids = new Set(scopedTasks.map((t) => t.id))
+    return sessions.filter((s) => !s.taskId || ids.has(s.taskId))
+  }, [sessions, scopeId, scopedTasks])
 
   /* ---- 数据清除（数据管理菜单 + 二次确认；删除后图表随 store 实时刷新） ---- */
   const [menuOpen, setMenuOpen] = useState(false)
@@ -194,13 +206,13 @@ export function StatsPanel() {
   /* ---- 模块 1：累计专注汇总（自定义起始时间范围，空 = 全部历史） ---- */
   const [focusFrom, setFocusFrom] = useState('')
   const focusSummary = useMemo(
-    () => computeFocusSummary(sessions, focusFrom ? { from: focusFrom } : undefined),
-    [sessions, focusFrom],
+    () => computeFocusSummary(scopedSessions, focusFrom ? { from: focusFrom } : undefined),
+    [scopedSessions, focusFrom],
   )
 
   /* ---- 模块 2：当日专注（左右箭头回溯历史单日） ---- */
   const [selectedDay, setSelectedDay] = useState(today)
-  const daySnapshot = useMemo(() => dailyFocusSnapshot(sessions, selectedDay), [sessions, selectedDay])
+  const daySnapshot = useMemo(() => dailyFocusSnapshot(scopedSessions, selectedDay), [scopedSessions, selectedDay])
   const isFutureDay = selectedDay >= today
 
   /* ---- 模块 3：专注时长分布饼图（日 / 周 / 月 / 自定义 + 明细入口） ---- */
@@ -227,14 +239,14 @@ export function StatsPanel() {
   }, [distMode, today, weekStart, customFrom, customTo, nowYm.year, nowYm.month])
 
   const slices = useMemo(
-    () => (distRange ? categoryFocusSplit(sessions, tasks, distRange.from, distRange.to) : []),
-    [sessions, tasks, distRange],
+    () => (distRange ? categoryFocusSplit(scopedSessions, scopedTasks, distRange.from, distRange.to) : []),
+    [scopedSessions, scopedTasks, distRange],
   )
 
-  const titleById = useMemo(() => new Map(tasks.map((t) => [t.id, t.title])), [tasks])
+  const titleById = useMemo(() => new Map(scopedTasks.map((t) => [t.id, t.title])), [scopedTasks])
   const detailRows = useMemo(() => {
     if (!distRange || !showDetail) return []
-    return sessions
+    return scopedSessions
       .filter((s) => {
         const dateStr = sessionLocalDate(s.startedAt)
         return dateStr >= distRange.from && dateStr <= distRange.to
@@ -247,13 +259,13 @@ export function StatsPanel() {
         title: s.taskId ? (titleById.get(s.taskId) ?? '已删除任务') : FREE_FOCUS_LABEL,
         seconds: s.durationSec,
       }))
-  }, [sessions, distRange, showDetail, titleById])
+  }, [scopedSessions, distRange, showDetail, titleById])
 
   /* ---- 模块 4：月度专注时段分布（24 小时柱状图，月份切换） ---- */
   const [hourYm, setHourYm] = useState(nowYm)
   const hourBuckets = useMemo(
-    () => hourlyFocusDistribution(sessions, hourYm.year, hourYm.month),
-    [sessions, hourYm],
+    () => hourlyFocusDistribution(scopedSessions, hourYm.year, hourYm.month),
+    [scopedSessions, hourYm],
   )
   const peakHour = hourBuckets.reduce((best, sec, h) => (sec > hourBuckets[best] ? h : best), 0)
   const hasHourData = hourBuckets[peakHour] > 0
@@ -262,29 +274,30 @@ export function StatsPanel() {
   const [trendYm, setTrendYm] = useState(nowYm)
   const monthPoints = useMemo(
     () =>
-      monthlyDailyTrend(sessions, trendYm.year, trendYm.month).map((p) => ({
+      monthlyDailyTrend(scopedSessions, trendYm.year, trendYm.month).map((p) => ({
         label: `${p.day}日`,
         seconds: p.seconds,
       })),
-    [sessions, trendYm],
+    [scopedSessions, trendYm],
   )
   const monthTotal = monthPoints.reduce((sum, p) => sum + p.seconds, 0)
 
   /* ---- 模块 6：年度专注趋势（面积图，年份切换） ---- */
   const [trendYear, setTrendYear] = useState(nowYm.year)
   const yearPoints = useMemo(
-    () => yearlyMonthlyTrend(sessions, trendYear).map((p) => ({ label: p.label, seconds: p.seconds })),
-    [sessions, trendYear],
+    () => yearlyMonthlyTrend(scopedSessions, trendYear).map((p) => ({ label: p.label, seconds: p.seconds })),
+    [scopedSessions, trendYear],
   )
   const yearTotal = yearPoints.reduce((sum, p) => sum + p.seconds, 0)
 
   /* ---- 任务统计（原有） ---- */
-  const stats = useMemo(() => computeStats(tasks, overrides, { weekStart }), [tasks, overrides, weekStart])
+  const stats = useMemo(() => computeStats(scopedTasks, overrides, { weekStart }), [scopedTasks, overrides, weekStart])
+  const habitTasks = useMemo(() => scopedTasks.filter((t) => (t.taskType ?? 'normal') === 'habit'), [scopedTasks])
   const habitStreaks = useMemo(() => {
-    return habits
-      .map((h) => ({ title: h.title, streak: streakOf(h, today) }))
+    return habitTasks
+      .map((t) => ({ title: t.title, streak: streakOf({ id: t.id, title: t.title, checkins: t.habitCheckins ?? [] }, today) }))
       .sort((a, b) => b.streak - a.streak)
-  }, [habits, today])
+  }, [habitTasks, today])
   const maxHabitStreak = habitStreaks.reduce((m, x) => Math.max(m, x.streak), 0)
 
   const priorityMax = Math.max(1, ...ALL_PRIORITIES.map((p) => stats.priorityDistribution[p]))
@@ -300,7 +313,28 @@ export function StatsPanel() {
   return (
     <div className="stats-panel">
       <div className="stats-head-row">
-        <h2 className="text-base font-bold">统计看板</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-base font-bold">统计看板</h2>
+          {/* v3 统计维度：全局 / 指定待办集 */}
+          <select
+            className="select"
+            style={{ height: 28, fontSize: 12 }}
+            value={scopeId}
+            onChange={(e) => setScopeId(e.target.value)}
+            title="统计维度"
+          >
+            <option value="">全局统计</option>
+            {collections
+              .slice()
+              .sort((a, b) => (a.isSystem === b.isSystem ? a.sortOrder - b.sortOrder : a.isSystem ? -1 : 1))
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.isSystem ? '📥 ' : ''}
+                  {c.name}
+                </option>
+              ))}
+          </select>
+        </div>
         <div className="stats-more-wrap" ref={menuRef}>
           <button className="text-btn" onClick={() => setMenuOpen((v) => !v)} title="统计数据管理">
             ⋯ 数据管理
@@ -547,7 +581,7 @@ export function StatsPanel() {
           <span className="stat-streak-num">{maxHabitStreak}</span>
           <span className="stat-streak-unit">天</span>
         </div>
-        <p className="stat-hint">所有习惯中最长的连续打卡天数（共 {habits.length} 个习惯）</p>
+        <p className="stat-hint">所有习惯任务中最长的连续打卡天数（共 {habitTasks.length} 个习惯）</p>
         {habitStreaks.length > 0 && (
           <div className="mt-3 flex flex-col gap-1">
             {habitStreaks.slice(0, 5).map((h) => (

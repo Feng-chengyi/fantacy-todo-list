@@ -26,7 +26,6 @@ import type {
   WorkAreaRect,
 } from '../../shared/types'
 import { PET_CHARACTERS } from '../../shared/defaults'
-import { pomodoroPhaseLabel } from '../../shared/pomodoro'
 import { computePetWindowSize, screenAwareOffset } from '../../shared/petWindow'
 import { Bubble } from './bubble'
 import { PomodoroBadge } from './PomodoroBadge'
@@ -389,7 +388,6 @@ export function PetApp() {
 
   // 菜单实时联动数据
   const nearestGoal = goals.find((g) => g.daysLeft >= 0)
-  const pomodoroActive = pomodoro != null && pomodoro.phase !== 'idle'
 
   const openPanelAndClose = useCallback(
     (panel: Parameters<typeof window.petApi.openPanel>[0]) => {
@@ -474,11 +472,6 @@ export function PetApp() {
                 : `距『${nearestGoal.title}』还有 ${nearestGoal.daysLeft} 天`}
             </button>
           )}
-          {pomodoroActive && pomodoro && (
-            <button className="pet-menu-info" onClick={() => openPanelAndClose('pomodoro')}>
-              {pomodoroPhaseLabel(pomodoro.phase)}
-            </button>
-          )}
 
           <div className="pet-menu-section">角色</div>
           <button onClick={() => setShowRoles((v) => !v)}>
@@ -510,10 +503,9 @@ export function PetApp() {
           )}
 
           <div className="pet-menu-section">面板</div>
-          <button onClick={() => openPanelAndClose('timer')}>⏱ 计时器</button>
-          <button onClick={() => openPanelAndClose('pomodoro')}>番茄钟</button>
+          <button onClick={() => openPanelAndClose('collections')}>🗂 待办集</button>
+          <button onClick={() => openPanelAndClose('timeline')}>🗓 时间轴</button>
           <button onClick={() => openPanelAndClose('stats')}>统计</button>
-          <button onClick={() => openPanelAndClose('habits')}>习惯</button>
           <button onClick={() => openPanelAndClose('goals')}>倒数日</button>
           <button onClick={() => openPanelAndClose('settings')}>设置</button>
 

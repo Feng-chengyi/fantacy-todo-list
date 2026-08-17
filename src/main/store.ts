@@ -6,7 +6,7 @@ import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { DEFAULT_DATA, mergeConfig } from '../shared/defaults'
-import { normalizeHabit } from '../shared/habit'
+import { migrateDataV3 } from '../shared/collections'
 import type { AppConfig, FullData } from '../shared/types'
 
 const CONFIG_DEBOUNCE_MS = 200
@@ -109,15 +109,16 @@ class Store {
   }
 
   /**
-   * 数据迁移：为旧任务补全 category / color 字段（缺省为空字符串），
-   * 为旧数据补全 goals / habits 数组，为 habit 补全 archived、为 goal 补全 category/color，
-   * 使渲染进程 / 统计 / 校验层无需再判断 undefined。
+   * 数据迁移（v3 统一任务体系）：
+   * - normalizeData 兜底基础字段（category/color/reminder/goals/sessions）；
+   * - migrateDataV3 完成体系迁移：补全 collections（系统收集箱）与 activities、
+   *   旧任务补全 collectionId/taskType/timerKind、旧独立 habits 一次性降格为
+   *   taskType='habit' 的任务（打卡日期 → habitCheckins）。
    */
   private normalizeData(data: FullData): FullData {
     const tasks = Array.isArray(data.tasks) ? data.tasks : []
     const goals = Array.isArray(data.goals) ? data.goals : []
-    const habits = Array.isArray(data.habits) ? data.habits : []
-    return {
+    const based: FullData = {
       ...data,
       tasks: tasks.map((t) => ({
         ...t,
@@ -131,10 +132,11 @@ class Store {
         category: typeof g.category === 'string' ? g.category : '',
         color: typeof g.color === 'string' ? g.color : '',
       })),
-      habits: habits.map((h) => normalizeHabit(h)),
+      habits: Array.isArray(data.habits) ? data.habits : [],
       // 专注会话记录：旧 data.json 缺省回填空数组
       sessions: Array.isArray(data.sessions) ? data.sessions : [],
     }
+    return migrateDataV3(based)
   }
 
   private clone<T>(value: T): T {

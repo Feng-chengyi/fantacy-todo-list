@@ -4,14 +4,15 @@
 import { describe, expect, it } from 'vitest'
 import type { BackupBundle } from './types'
 import { validateBackupBundle } from './validate'
+import { DATA_VERSION } from './defaults'
 
 function validBundle(): BackupBundle {
   return {
     app: 'fantacy-todo-list',
-    backupVersion: 1,
+    backupVersion: DATA_VERSION,
     exportedAt: '2025-08-15T08:00:00.000Z',
     data: {
-      version: 1,
+      version: DATA_VERSION,
       tasks: [
         {
           id: 't1',
@@ -32,6 +33,8 @@ function validBundle(): BackupBundle {
       goals: [],
       habits: [],
       sessions: [],
+      collections: [],
+      activities: [],
     },
     config: {
       petVisible: true,
@@ -251,7 +254,7 @@ describe('validateBackupBundle', () => {
 
   it('backupVersion 值非当前版本失败', () => {
     const b = validBundle()
-    ;(b as unknown as Record<string, unknown>).backupVersion = 2
+    ;(b as unknown as Record<string, unknown>).backupVersion = DATA_VERSION + 1
     expect(validateBackupBundle(b).ok).toBe(false)
   })
 

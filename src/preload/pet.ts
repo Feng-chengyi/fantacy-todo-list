@@ -28,7 +28,7 @@ const petApi: PetRendererApi = {
   openPanel: (panel: MainPanel): Promise<void> => ipcRenderer.invoke(IPC.windowOpenPanel, panel),
   completeTask: (taskId: string): Promise<void> => ipcRenderer.invoke(IPC.petCompleteTask, taskId),
   petPackList: (): Promise<PetPackEntry[]> => ipcRenderer.invoke(IPC.petPackList),
-  quit: (): Promise<void> => ipcRenderer.invoke(IPC.windowClose),
+  quit: (): Promise<void> => ipcRenderer.invoke(IPC.appQuit),
   onBubble: (cb: (text: string) => void): (() => void) => {
     const listener = (_event: IpcRendererEvent, text: string): void => cb(text)
     ipcRenderer.on(IPC_MAIN.petBubble, listener)

@@ -1,29 +1,34 @@
 /**
- * UI 状态 store：当前年月、选中日期、编辑弹窗、筛选、拖拽态、右键菜单。
+ * UI 状态 store：当前页面、编辑弹窗、筛选、拖拽态、右键菜单、进行中计时器。
+ * v3：一级导航仅 待办/待办集/时间轴/统计/倒数日；计时无独立页面（悬浮窗常驻）。
  */
 import { create } from 'zustand'
-import type { Task, TimerMode, TimerState } from '../../../shared/types'
+import type { Task, TaskType, TimerState } from '../../../shared/types'
 import { timerElapsedMs } from '../../../shared/focus'
 import { addDays, currentYearMonth, shiftMonth, todayStr } from '../../../shared/date'
 
 // 正向计时纯函数与状态类型已迁入 shared（focus.ts / types.ts），此处保留再导出
-// 以兼容存量 renderer 引用（TopBar / TimerPanel / Stopwatch / services/focus）。
+// 以兼容存量 renderer 引用（TopBar / Stopwatch / services/focus）。
 export { timerElapsedMs }
 export type { TimerState }
 
 export type TaskFilter = 'all' | 'pending' | 'done' | 'abandoned'
 export type CalendarView = 'month' | 'week' | 'day' | 'list'
+/** 任务类型筛选（待办页顶部 tab） */
+export type TaskTypeFilter = 'all' | TaskType
 
-/** 左侧一级导航页面（待办为默认首页；日历/时间线复盘归入时间轴页） */
-export type Page = 'todo' | 'inbox' | 'timeline' | 'stats' | 'habits' | 'goals' | 'timer'
+/** 左侧一级导航页面（v3：5 个核心入口，待办为默认首页） */
+export type Page = 'todo' | 'collections' | 'timeline' | 'stats' | 'goals'
 
 export interface EditorState {
   /** null = 新建；否则为编辑已有任务 */
   task: Task | null
-  /** 新建时预填日期；编辑收集箱项为 null */
+  /** 新建时预填日期；无日期任务为 null */
   date: string | null
   /** 编辑重复任务某个具体实例的日期（单日操作上下文） */
   occurrenceDate?: string
+  /** v3 新建预设：所属待办集（待办集详情页新建时自动归属） */
+  collectionId?: string
 }
 
 export interface ContextMenuState {
@@ -40,7 +45,10 @@ interface UiState {
   /** 当前一级导航页面（默认待办首页） */
   page: Page
   editor: EditorState | null
+  /** 状态筛选（待办页） */
   filter: TaskFilter
+  /** v3 任务类型筛选（待办页） */
+  typeFilter: TaskTypeFilter
   showSettings: boolean
   /** 制作桌宠向导弹层（从设置面板调起） */
   showPetMaker: boolean
@@ -48,11 +56,9 @@ interface UiState {
   showSearch: boolean
   /** 使用说明面板（T05） */
   showHelp: boolean
-  /** 计时器模式：正向计时 / 番茄钟（统一计时页切换） */
-  timerMode: TimerMode
   dragOverDate: string | null
   contextMenu: ContextMenuState | null
-  /** 正向计时：当前正在计时的任务 */
+  /** 正向/倒计时：当前正在计时的任务（悬浮窗常驻，切换页面不中断） */
   timer: TimerState | null
   goToday: () => void
   nextMonth: () => void
@@ -63,25 +69,25 @@ interface UiState {
   nextWeek: () => void
   prevDay: () => void
   nextDay: () => void
-  openCreate: (date: string | null) => void
+  openCreate: (date: string | null, preset?: { collectionId?: string }) => void
   openEdit: (task: Task, occurrenceDate?: string) => void
   closeEditor: () => void
   setFilter: (f: TaskFilter) => void
+  setTypeFilter: (f: TaskTypeFilter) => void
   setShowSettings: (v: boolean) => void
   setShowPetMaker: (v: boolean) => void
   /** 切换一级导航页面 */
   setPage: (p: Page) => void
   setShowSearch: (v: boolean) => void
   setShowHelp: (v: boolean) => void
-  setTimerMode: (mode: TimerMode) => void
-  /** 打开计时面板并关闭其它主视图面板；传 mode 时同时切换计时器模式（供快捷键/番茄入口复用） */
-  openTimerPanel: (mode?: TimerMode) => void
   setDragOverDate: (d: string | null) => void
   setContextMenu: (m: ContextMenuState | null) => void
   startTimer: (taskId: string, occurrenceDate?: string | null) => void
   pauseTimer: () => void
   resumeTimer: () => void
   stopTimer: () => void
+  /** 恢复主进程持久化的计时快照（应用启动时） */
+  restoreTimer: (timer: TimerState | null) => void
 }
 
 const initial = currentYearMonth()
@@ -93,12 +99,12 @@ export const useUiStore = create<UiState>((set) => ({
   view: 'month',
   page: 'todo',
   editor: null,
-  filter: 'all',
+  filter: 'pending',
+  typeFilter: 'all',
   showSettings: false,
   showPetMaker: false,
   showSearch: false,
   showHelp: false,
-  timerMode: 'stopwatch',
   dragOverDate: null,
   contextMenu: null,
   timer: null,
@@ -132,7 +138,8 @@ export const useUiStore = create<UiState>((set) => ({
 
   nextDay: () => set((s) => ({ selectedDate: s.selectedDate ? addDays(s.selectedDate, 1) : todayStr() })),
 
-  openCreate: (date) => set({ editor: { task: null, date }, contextMenu: null }),
+  openCreate: (date, preset) =>
+    set({ editor: { task: null, date, collectionId: preset?.collectionId }, contextMenu: null }),
 
   openEdit: (task, occurrenceDate) =>
     set({ editor: { task, date: task.date, occurrenceDate }, contextMenu: null }),
@@ -140,6 +147,8 @@ export const useUiStore = create<UiState>((set) => ({
   closeEditor: () => set({ editor: null }),
 
   setFilter: (f) => set({ filter: f }),
+
+  setTypeFilter: (f) => set({ typeFilter: f }),
 
   setShowSettings: (v) => set({ showSettings: v }),
 
@@ -150,14 +159,6 @@ export const useUiStore = create<UiState>((set) => ({
   setShowSearch: (v) => set({ showSearch: v }),
 
   setShowHelp: (v) => set({ showHelp: v }),
-
-  setTimerMode: (mode) => set({ timerMode: mode }),
-
-  openTimerPanel: (mode) =>
-    set({
-      page: 'timer',
-      ...(mode ? { timerMode: mode } : {}),
-    }),
 
   setDragOverDate: (d) => set({ dragOverDate: d }),
 
@@ -194,4 +195,6 @@ export const useUiStore = create<UiState>((set) => ({
     }),
 
   stopTimer: () => set({ timer: null }),
+
+  restoreTimer: (timer) => set({ timer }),
 }))

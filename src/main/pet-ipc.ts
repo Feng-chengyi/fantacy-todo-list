@@ -149,11 +149,8 @@ export function registerPetIpc(): void {
     store.setData(data)
   })
 
-  ipcMain.handle(IPC.windowMinimize, (): void => {
-    getMainWindow()?.minimize()
-  })
-
-  ipcMain.handle(IPC.windowClose, (): void => {
+  // 桌宠菜单「退出应用」（程序级退出，非主窗口控件）
+  ipcMain.handle(IPC.appQuit, (): void => {
     app.quit()
   })
 }

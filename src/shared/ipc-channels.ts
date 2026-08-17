@@ -18,10 +18,15 @@ export const IPC = {
   overrideClear: 'override:clear',
   goalCreate: 'goal:create',
   goalDelete: 'goal:delete',
-  habitCreate: 'habit:create',
-  habitDelete: 'habit:delete',
-  habitToggle: 'habit:toggle',
-  habitSetArchived: 'habit:setArchived',
+  /** v3 待办集 CRUD */
+  collectionCreate: 'collection:create',
+  collectionRename: 'collection:rename',
+  collectionDelete: 'collection:delete',
+  collectionReorder: 'collection:reorder',
+  /** v3 任务批量操作 */
+  taskBatchMove: 'task:batch-move',
+  taskBatchStatus: 'task:batch-status',
+  taskBatchDelete: 'task:batch-delete',
   /** 原子提交一次专注会话（session 追加 + 任务 durationSec 累加，单次落盘） */
   focusCommit: 'focus:commit',
   /** 删除单条专注会话（连带扣减绑定任务 durationSec） */
@@ -34,6 +39,9 @@ export const IPC = {
   configSet: 'config:set',
   dataExport: 'data:export',
   dataImport: 'data:import',
+  /** v3 主题背景图（选择落盘 / 清除） */
+  uiPickBgImage: 'ui:pick-bg-image',
+  uiClearBgImage: 'ui:clear-bg-image',
   // 桌宠 / 窗口
   petShowBubble: 'pet:show-bubble',
   petSetVisible: 'pet:set-visible',
@@ -58,8 +66,8 @@ export const IPC = {
   timerLoadAssets: 'timer:load-assets',
   windowFocusMain: 'window:focus-main',
   windowOpenPanel: 'window:open-panel',
-  windowMinimize: 'window:minimize',
-  windowClose: 'window:close',
+  /** 桌宠菜单「退出应用」（非窗口控件，程序级退出） */
+  appQuit: 'app:quit',
 } as const
 
 /** 主进程 → 渲染进程（webContents.send） */

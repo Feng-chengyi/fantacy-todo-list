@@ -29,7 +29,7 @@ function reminder(time: string): TaskReminder {
 }
 
 function fullData(tasks: Task[], overrides: RepeatOverride[] = []): FullData {
-  return { version: 1, tasks, overrides, goals: [], habits: [], sessions: [] }
+  return { version: 1, tasks, overrides, goals: [], habits: [], sessions: [], collections: [], activities: [] }
 }
 
 /** 某日期某时刻的本地毫秒时间戳（与 listDueReminders 的本地口径一致） */

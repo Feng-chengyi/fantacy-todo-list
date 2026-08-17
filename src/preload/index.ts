@@ -12,7 +12,6 @@ import type {
   FocusCommitResult,
   FocusSession,
   FullData,
-  Habit,
   ImportResult,
   MainPanel,
   OverrideAction,
@@ -27,6 +26,7 @@ import type {
   RepeatOverride,
   ShortcutAction,
   Task,
+  TaskCollection,
   TaskStatus,
   TimerAssetKind,
   TimerAssetPickResult,
@@ -51,12 +51,19 @@ const api: RendererApi = {
   createGoal: (input: { title: string; targetDate: string; category?: string; color?: string }): Promise<CountdownGoal> =>
     ipcRenderer.invoke(IPC.goalCreate, input),
   deleteGoal: (id: string): Promise<void> => ipcRenderer.invoke(IPC.goalDelete, id),
-  createHabit: (input: { title: string }): Promise<Habit> => ipcRenderer.invoke(IPC.habitCreate, input),
-  deleteHabit: (id: string): Promise<void> => ipcRenderer.invoke(IPC.habitDelete, id),
-  toggleHabit: (id: string, date: string): Promise<Habit> =>
-    ipcRenderer.invoke(IPC.habitToggle, { id, date }),
-  setHabitArchived: (id: string, archived: boolean): Promise<Habit> =>
-    ipcRenderer.invoke(IPC.habitSetArchived, { id, archived }),
+  createCollection: (input: { name: string }): Promise<TaskCollection> =>
+    ipcRenderer.invoke(IPC.collectionCreate, input),
+  renameCollection: (id: string, name: string): Promise<TaskCollection> =>
+    ipcRenderer.invoke(IPC.collectionRename, { id, name }),
+  deleteCollection: (id: string): Promise<FullData> => ipcRenderer.invoke(IPC.collectionDelete, id),
+  reorderCollections: (orderedIds: string[]): Promise<void> =>
+    ipcRenderer.invoke(IPC.collectionReorder, orderedIds),
+  batchMoveTasks: (taskIds: string[], collectionId: string): Promise<FullData> =>
+    ipcRenderer.invoke(IPC.taskBatchMove, { taskIds, collectionId }),
+  batchSetStatus: (taskIds: string[], status: TaskStatus): Promise<FullData> =>
+    ipcRenderer.invoke(IPC.taskBatchStatus, { taskIds, status }),
+  batchDeleteTasks: (taskIds: string[]): Promise<FullData> =>
+    ipcRenderer.invoke(IPC.taskBatchDelete, taskIds),
   getConfig: (): Promise<AppConfig> => ipcRenderer.invoke(IPC.configGet),
   setConfig: (patch: Partial<AppConfig>): Promise<AppConfig> => ipcRenderer.invoke(IPC.configSet, patch),
   showBubble: (text: string): Promise<void> => ipcRenderer.invoke(IPC.petShowBubble, text),
@@ -75,6 +82,8 @@ const api: RendererApi = {
     ipcRenderer.invoke(IPC.timerPickAsset, kind),
   timerClearAsset: (kind: TimerAssetKind): Promise<void> => ipcRenderer.invoke(IPC.timerClearAsset, kind),
   timerLoadAssets: (): Promise<TimerAssets> => ipcRenderer.invoke(IPC.timerLoadAssets),
+  pickBgImage: (): Promise<TimerAssetPickResult> => ipcRenderer.invoke(IPC.uiPickBgImage),
+  clearBgImage: (): Promise<void> => ipcRenderer.invoke(IPC.uiClearBgImage),
   commitFocusSession: (session: FocusSession): Promise<FocusCommitResult> =>
     ipcRenderer.invoke(IPC.focusCommit, session),
   deleteFocusSession: (sessionId: string): Promise<FullData> =>
@@ -82,8 +91,6 @@ const api: RendererApi = {
   clearFocusSessions: (from: string, to: string): Promise<FullData> =>
     ipcRenderer.invoke(IPC.statsClearRange, { from, to }),
   resetFocusStats: (): Promise<FullData> => ipcRenderer.invoke(IPC.statsResetAll),
-  minimize: (): Promise<void> => ipcRenderer.invoke(IPC.windowMinimize),
-  close: (): Promise<void> => ipcRenderer.invoke(IPC.windowClose),
   onOpenPanel: (cb: (panel: MainPanel) => void): (() => void) => {
     const listener = (_event: IpcRendererEvent, panel: MainPanel): void => cb(panel)
     ipcRenderer.on(IPC_MAIN.openPanel, listener)
