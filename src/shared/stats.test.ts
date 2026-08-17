@@ -1,9 +1,20 @@
 /**
- * computeStats / 专注统计（computeFocusSummary、bucketFocus）单测。
+ * computeStats / 专注统计（computeFocusSummary、bucketFocus）/ 数据分析仪表盘纯函数单测。
  */
 import { describe, expect, it } from 'vitest'
 import type { FocusSession, RepeatOverride, Task } from './types'
-import { bucketFocus, computeFocusSummary, computeStats } from './stats'
+import {
+  bucketFocus,
+  categoryFocusSplit,
+  computeFocusSummary,
+  computeStats,
+  dailyFocusSnapshot,
+  FREE_FOCUS_LABEL,
+  hourlyFocusDistribution,
+  monthlyDailyTrend,
+  UNCATEGORIZED_FOCUS_LABEL,
+  yearlyMonthlyTrend,
+} from './stats'
 
 /** 构造一个最小合法任务 */
 function task(over: Partial<Task> & { id: string }): Task {
@@ -253,5 +264,151 @@ describe('sessionDate 本地时区归属（QA Bug 2：ISO(UTC) 日期 ≠ 本地
       today: '2025-08-15',
     })
     expect(s.todaySessions).toBe(1)
+  })
+})
+
+/* ============ 数据分析仪表盘 ============ */
+
+describe('dailyFocusSnapshot 当日专注快照', () => {
+  it('统计某本地日期的次数与总时长', () => {
+    // 本地时刻构造，任何时区下归属日固定
+    const sessions = [
+      session({ id: 'd1', startedAt: new Date(2025, 7, 15, 10, 0).toISOString(), durationSec: 600 }),
+      session({ id: 'd2', startedAt: new Date(2025, 7, 15, 14, 0).toISOString(), durationSec: 300 }),
+      session({ id: 'd3', startedAt: new Date(2025, 7, 14, 23, 0).toISOString(), durationSec: 9999 }),
+    ]
+    const snap = dailyFocusSnapshot(sessions, '2025-08-15')
+    expect(snap).toEqual({ date: '2025-08-15', sessions: 2, seconds: 900 })
+  })
+
+  it('本地凌晨会话归属本地日期（UTC ISO 日期是前一天）', () => {
+    const startedAt = new Date(2025, 7, 15, 0, 30).toISOString() // UTC+8 下 ISO 为 08-14T16:30Z
+    const snap = dailyFocusSnapshot([session({ id: 'tz', startedAt, durationSec: 60 })], '2025-08-15')
+    expect(snap.sessions).toBe(1)
+  })
+
+  it('无匹配会话返回零值', () => {
+    expect(dailyFocusSnapshot([], '2025-08-15')).toEqual({ date: '2025-08-15', sessions: 0, seconds: 0 })
+  })
+})
+
+describe('categoryFocusSplit 分类时长拆解（饼图）', () => {
+  const tasks = [
+    task({ id: 't1', category: '学习' }),
+    task({ id: 't2', category: ' 学习 ' }), // trim 后与 t1 同类
+    task({ id: 't3' }), // 无分类 → 未分类
+    // t4 已删除：session 悬挂引用 → 未分类
+  ]
+
+  it('按分类聚合、自由计时独立、按时长降序、百分比正确', () => {
+    // 总时长 3000：学习 2400（80%）、未分类 420（14%）、自由计时 180（6%）
+    const sessions = [
+      session({ id: 'f1', taskId: 't1', startedAt: new Date(2025, 7, 15, 10, 0).toISOString(), durationSec: 1800 }),
+      session({ id: 'f2', taskId: 't2', startedAt: new Date(2025, 7, 15, 11, 0).toISOString(), durationSec: 600 }),
+      session({ id: 'f3', taskId: 't3', startedAt: new Date(2025, 7, 15, 12, 0).toISOString(), durationSec: 300 }),
+      session({ id: 'f4', taskId: 't4', startedAt: new Date(2025, 7, 15, 13, 0).toISOString(), durationSec: 120 }),
+      session({ id: 'f5', taskId: '', startedAt: new Date(2025, 7, 15, 14, 0).toISOString(), durationSec: 180 }),
+    ]
+    const slices = categoryFocusSplit(sessions, tasks, '2025-08-15', '2025-08-15')
+    expect(slices.map((s) => s.label)).toEqual(['学习', UNCATEGORIZED_FOCUS_LABEL, FREE_FOCUS_LABEL])
+    expect(slices[0]).toEqual({ label: '学习', seconds: 2400, percent: 80 })
+    expect(slices[1]).toEqual({ label: UNCATEGORIZED_FOCUS_LABEL, seconds: 420, percent: 14 })
+    expect(slices[2]).toEqual({ label: FREE_FOCUS_LABEL, seconds: 180, percent: 6 })
+  })
+
+  it('区间外会话不计入；区间内无会话返回 []', () => {
+    const sessions = [
+      session({ id: 'f1', taskId: 't1', startedAt: new Date(2025, 7, 14, 10, 0).toISOString(), durationSec: 600 }),
+    ]
+    expect(categoryFocusSplit(sessions, tasks, '2025-08-15', '2025-08-15')).toEqual([])
+    expect(categoryFocusSplit([], tasks, '2025-08-01', '2025-08-31')).toEqual([])
+  })
+})
+
+describe('hourlyFocusDistribution 月度时段分布（24 小时柱状图）', () => {
+  it('按会话开始本地小时归桶，跨月过滤', () => {
+    const h10 = new Date(2025, 7, 15, 10, 5).toISOString() // 08-15 10:05 本地
+    const h10b = new Date(2025, 7, 16, 10, 40).toISOString()
+    const h22 = new Date(2025, 7, 20, 22, 0).toISOString()
+    const otherMonth = new Date(2025, 6, 15, 10, 0).toISOString() // 07-15
+    const hours = hourlyFocusDistribution(
+      [
+        session({ id: 'h1', startedAt: h10, durationSec: 600 }),
+        session({ id: 'h2', startedAt: h10b, durationSec: 300 }),
+        session({ id: 'h3', startedAt: h22, durationSec: 120 }),
+        session({ id: 'h4', startedAt: otherMonth, durationSec: 9999 }),
+      ],
+      2025,
+      7, // 8 月（0 基）
+    )
+    expect(hours).toHaveLength(24)
+    expect(hours[10]).toBe(900)
+    expect(hours[22]).toBe(120)
+    expect(hours.reduce((a, b) => a + b, 0)).toBe(1020)
+  })
+
+  it('无会话返回全零 24 桶', () => {
+    const hours = hourlyFocusDistribution([], 2025, 7)
+    expect(hours).toHaveLength(24)
+    expect(hours.every((v) => v === 0)).toBe(true)
+  })
+})
+
+describe('monthlyDailyTrend 月度每日趋势（面积图）', () => {
+  it('按月生成每日点，空日补零', () => {
+    const d1 = new Date(2025, 7, 1, 9, 0).toISOString()
+    const d31 = new Date(2025, 7, 31, 23, 0).toISOString()
+    const trend = monthlyDailyTrend(
+      [
+        session({ id: 'm1', startedAt: d1, durationSec: 600 }),
+        session({ id: 'm2', startedAt: d31, durationSec: 300 }),
+        session({ id: 'm3', startedAt: new Date(2025, 6, 31, 9, 0).toISOString(), durationSec: 9999 }), // 7 月
+      ],
+      2025,
+      7,
+    )
+    expect(trend).toHaveLength(31) // 2025-08 有 31 天
+    expect(trend[0]).toEqual({ date: '2025-08-01', day: 1, seconds: 600 })
+    expect(trend[1]).toEqual({ date: '2025-08-02', day: 2, seconds: 0 })
+    expect(trend[30]).toEqual({ date: '2025-08-31', day: 31, seconds: 300 })
+    expect(trend.reduce((sum, p) => sum + p.seconds, 0)).toBe(900)
+  })
+
+  it('同日多会话累加', () => {
+    const a = new Date(2025, 7, 10, 8, 0).toISOString()
+    const b = new Date(2025, 7, 10, 20, 0).toISOString()
+    const trend = monthlyDailyTrend(
+      [session({ id: 'x1', startedAt: a, durationSec: 60 }), session({ id: 'x2', startedAt: b, durationSec: 40 })],
+      2025,
+      7,
+    )
+    expect(trend[9].seconds).toBe(100)
+  })
+})
+
+describe('yearlyMonthlyTrend 年度每月趋势（面积图）', () => {
+  it('固定 12 点、按归属月累加、跨年过滤', () => {
+    const trend = yearlyMonthlyTrend(
+      [
+        session({ id: 'y1', startedAt: new Date(2025, 0, 5, 9, 0).toISOString(), durationSec: 600 }), // 1 月
+        session({ id: 'y2', startedAt: new Date(2025, 11, 30, 9, 0).toISOString(), durationSec: 300 }), // 12 月
+        session({ id: 'y3', startedAt: new Date(2025, 11, 31, 23, 0).toISOString(), durationSec: 60 }), // 12 月
+        session({ id: 'y4', startedAt: new Date(2024, 11, 31, 23, 0).toISOString(), durationSec: 9999 }), // 2024
+      ],
+      2025,
+    )
+    expect(trend).toHaveLength(12)
+    expect(trend.map((p) => p.label)).toEqual(
+      ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+    )
+    expect(trend[0].seconds).toBe(600)
+    expect(trend[11].seconds).toBe(360)
+    expect(trend[1].seconds).toBe(0)
+  })
+
+  it('无会话年份返回全零 12 点', () => {
+    const trend = yearlyMonthlyTrend([], 2030)
+    expect(trend).toHaveLength(12)
+    expect(trend.every((p) => p.seconds === 0)).toBe(true)
   })
 })

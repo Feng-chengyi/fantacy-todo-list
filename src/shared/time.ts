@@ -25,3 +25,21 @@ export function formatDurationMinutes(totalSeconds: number): string {
   const minutes = Math.max(0, Math.round(totalSeconds / 60))
   return `${minutes} 分钟`
 }
+
+/** 秒 → 「X 小时 Y 分 / X 小时 / X 分钟」（统计仪表盘卡片与图例展示） */
+export function formatDurationCompact(totalSeconds: number): string {
+  const minutes = Math.max(0, Math.round(totalSeconds / 60))
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  if (h <= 0) return `${m} 分钟`
+  if (m === 0) return `${h} 小时`
+  return `${h} 小时 ${m} 分`
+}
+
+/** 秒 → 紧凑轴刻度标签（如「45m」「1.5h」「2h」，图表 y 轴用） */
+export function formatDurationAxis(totalSeconds: number): string {
+  const minutes = Math.max(0, Math.round(totalSeconds / 60))
+  if (minutes < 60) return `${minutes}m`
+  const hours = minutes / 60
+  return `${Number.isInteger(hours) ? hours : hours.toFixed(1)}h`
+}

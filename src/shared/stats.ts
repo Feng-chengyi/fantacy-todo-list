@@ -7,7 +7,7 @@
  * - 连续打卡（streak）：从今天往前数，当天「至少有一个完成实例」的连续天数。
  * - 计数 / 优先级分布 / 分类分布：任务级（每个任务计 1 次）。
  */
-import { formatLocal, parseLocal, todayStr, weekDates } from './date'
+import { daysInMonth, formatLocal, parseLocal, todayStr, weekDates } from './date'
 import { getOccurrenceStatus, isOccurrenceOnDate, listOccurrencesInRange } from './repeatEngine'
 import type { FocusSession, Priority, RepeatOverride, Task } from './types'
 
@@ -296,4 +296,151 @@ export function computeStats(
     priorityDistribution,
     categoryDistribution,
   }
+}
+
+/* ============ 专注数据分析仪表盘（宏观总览 → 单日快照 → 分类拆解 → 时段洞察 → 中长期趋势） ============ */
+
+/** 单日专注快照（当日卡片：回溯历史单日数据） */
+export interface DailyFocusSnapshot {
+  /** YYYY-MM-DD */
+  date: string
+  /** 当日会话数 */
+  sessions: number
+  /** 当日总时长（秒） */
+  seconds: number
+}
+
+/** 某一自然日的专注快照 */
+export function dailyFocusSnapshot(sessions: FocusSession[], date: string): DailyFocusSnapshot {
+  let count = 0
+  let seconds = 0
+  for (const s of sessions) {
+    if (sessionDate(s) === date) {
+      count++
+      seconds += s.durationSec
+    }
+  }
+  return { date, sessions: count, seconds }
+}
+
+/** 自由计时（未绑定任务）会话在分类拆解中的展示名 */
+export const FREE_FOCUS_LABEL = '自由计时'
+/** 绑定了任务但任务无分类时的展示名 */
+export const UNCATEGORIZED_FOCUS_LABEL = '未分类'
+
+/** 分类时长切片（饼图：周期内各分类 / 自由计时的时长占比） */
+export interface FocusSplitSlice {
+  label: string
+  /** 该分类累计时长（秒） */
+  seconds: number
+  /** 占比 0–100（四舍五入 1 位小数；各切片之和可能因舍入略偏离 100） */
+  percent: number
+}
+
+/**
+ * 区间 [from, to] 内专注时长按分类拆解：
+ * - taskId 为空 → 「自由计时」；
+ * - 任务已删除或无分类 → 「未分类」；
+ * - 其余 → 任务分类（trim）。
+ * 结果按时长降序，区间内无会话返回 []。
+ */
+export function categoryFocusSplit(
+  sessions: FocusSession[],
+  tasks: Task[],
+  from: string,
+  to: string,
+): FocusSplitSlice[] {
+  const categoryById = new Map<string, string>()
+  for (const t of tasks) {
+    categoryById.set(t.id, t.category?.trim() || UNCATEGORIZED_FOCUS_LABEL)
+  }
+
+  const secondsByLabel = new Map<string, number>()
+  let total = 0
+  for (const s of sessions) {
+    const d = sessionDate(s)
+    if (d < from || d > to) continue
+    const label = s.taskId
+      ? (categoryById.get(s.taskId) ?? UNCATEGORIZED_FOCUS_LABEL)
+      : FREE_FOCUS_LABEL
+    secondsByLabel.set(label, (secondsByLabel.get(label) ?? 0) + s.durationSec)
+    total += s.durationSec
+  }
+  if (total === 0) return []
+
+  return [...secondsByLabel.entries()]
+    .map(([label, seconds]) => ({
+      label,
+      seconds,
+      percent: Math.round((seconds / total) * 1000) / 10,
+    }))
+    .sort((a, b) => b.seconds - a.seconds)
+}
+
+/** 月度时段分布：24 桶（索引 = 会话开始本地小时，值 = 该小时区间累计秒数） */
+export function hourlyFocusDistribution(
+  sessions: FocusSession[],
+  year: number,
+  month: number,
+): number[] {
+  const hours = new Array<number>(24).fill(0)
+  const prefix = `${year}-${String(month + 1).padStart(2, '0')}`
+  for (const s of sessions) {
+    const d = sessionDate(s)
+    if (!d.startsWith(prefix)) continue
+    hours[new Date(s.startedAt).getHours()] += s.durationSec
+  }
+  return hours
+}
+
+/** 月度趋势点（一个自然月内每日专注时长） */
+export interface DailyTrendPoint {
+  /** YYYY-MM-DD */
+  date: string
+  /** 日（1–31） */
+  day: number
+  /** 当日专注时长（秒），无会话为 0（空位保留，曲线连续） */
+  seconds: number
+}
+
+/** 一个自然月内每日专注时长趋势（含空日） */
+export function monthlyDailyTrend(
+  sessions: FocusSession[],
+  year: number,
+  month: number,
+): DailyTrendPoint[] {
+  const secondsByDate = new Map<string, number>()
+  const prefix = `${year}-${String(month + 1).padStart(2, '0')}`
+  for (const s of sessions) {
+    const d = sessionDate(s)
+    if (!d.startsWith(prefix)) continue
+    secondsByDate.set(d, (secondsByDate.get(d) ?? 0) + s.durationSec)
+  }
+  return daysInMonth(year, month).map((date) => ({
+    date,
+    day: parseLocal(date).getDate(),
+    seconds: secondsByDate.get(date) ?? 0,
+  }))
+}
+
+/** 年度趋势点（全年每月累计专注时长） */
+export interface MonthlyTrendPoint {
+  /** 1–12 */
+  month: number
+  /** 展示标签（如「1月」） */
+  label: string
+  /** 当月累计专注时长（秒） */
+  seconds: number
+}
+
+/** 全年每月累计专注时长趋势（固定 12 个点，空月为 0） */
+export function yearlyMonthlyTrend(sessions: FocusSession[], year: number): MonthlyTrendPoint[] {
+  const seconds = new Array<number>(12).fill(0)
+  const prefix = `${year}-`
+  for (const s of sessions) {
+    const d = sessionDate(s)
+    if (!d.startsWith(prefix)) continue
+    seconds[Number(d.slice(5, 7)) - 1] += s.durationSec
+  }
+  return seconds.map((sec, i) => ({ month: i + 1, label: `${i + 1}月`, seconds: sec }))
 }

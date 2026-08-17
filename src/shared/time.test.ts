@@ -1,8 +1,8 @@
 /**
- * time 纯函数单测：HH:mm 解析 / hh:mm:ss 秒表 / 用时分钟。
+ * time 纯函数单测：HH:mm 解析 / hh:mm:ss 秒表 / 用时分钟 / 仪表盘时长格式化。
  */
 import { describe, expect, it } from 'vitest'
-import { formatDurationMinutes, formatHms, timeToMinutes } from './time'
+import { formatDurationAxis, formatDurationCompact, formatDurationMinutes, formatHms, timeToMinutes } from './time'
 
 describe('timeToMinutes', () => {
   it('解析 HH:mm', () => {
@@ -33,5 +33,36 @@ describe('formatDurationMinutes', () => {
     expect(formatDurationMinutes(30)).toBe('1 分钟')
     expect(formatDurationMinutes(90)).toBe('2 分钟')
     expect(formatDurationMinutes(0)).toBe('0 分钟')
+  })
+})
+
+describe('formatDurationCompact（仪表盘卡片/图例）', () => {
+  it('不足 1 小时 → X 分钟', () => {
+    expect(formatDurationCompact(0)).toBe('0 分钟')
+    expect(formatDurationCompact(30 * 60)).toBe('30 分钟')
+    expect(formatDurationCompact(59 * 60 + 29)).toBe('59 分钟')
+  })
+  it('59.5 分钟四舍五入进位到整小时', () => {
+    expect(formatDurationCompact(59 * 60 + 30)).toBe('1 小时')
+  })
+  it('整小时 → X 小时', () => {
+    expect(formatDurationCompact(3600)).toBe('1 小时')
+    expect(formatDurationCompact(2 * 3600)).toBe('2 小时')
+  })
+  it('混合 → X 小时 Y 分', () => {
+    expect(formatDurationCompact(75 * 60)).toBe('1 小时 15 分')
+    expect(formatDurationCompact(25 * 3600 + 40 * 60)).toBe('25 小时 40 分')
+  })
+})
+
+describe('formatDurationAxis（图表 y 轴刻度）', () => {
+  it('分钟级 → Xm', () => {
+    expect(formatDurationAxis(0)).toBe('0m')
+    expect(formatDurationAxis(45 * 60)).toBe('45m')
+  })
+  it('小时级 → Xh / X.Xh', () => {
+    expect(formatDurationAxis(3600)).toBe('1h')
+    expect(formatDurationAxis(5400)).toBe('1.5h')
+    expect(formatDurationAxis(7200)).toBe('2h')
   })
 })
