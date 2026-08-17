@@ -8,7 +8,7 @@ import { IPC, IPC_MAIN } from '../shared/ipc-channels'
 import { todayStr } from '../shared/date'
 import { getMainWindow, getPetSize, getPetWindow, resizePetWindow, setPetVisible } from './windows'
 import { store } from './store'
-import type { MainPanel, PetAnimNotice, PomodoroState, WorkAreaRect } from '../shared/types'
+import type { MainPanel, PetAnimNotice, WorkAreaRect } from '../shared/types'
 
 /** 拖拽轮询定时器与抓取偏移（光标相对窗口左上角，主进程 DIP 口径） */
 let dragTimer: NodeJS.Timeout | null = null
@@ -103,10 +103,6 @@ export function registerPetIpc(): void {
       : screen.getPrimaryDisplay()
     ).workArea
     return { x: area.x, y: area.y, width: area.width, height: area.height }
-  })
-
-  ipcMain.handle(IPC.petNotifyPomodoro, (_event, state: PomodoroState): void => {
-    getPetWindow()?.webContents.send(IPC_MAIN.petPomodoro, state)
   })
 
   // 主窗口 → 桌宠：联动动画通知（timing / finishing / jumping）

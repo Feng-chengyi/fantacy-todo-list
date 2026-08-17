@@ -6,7 +6,7 @@ import { registerDataIpc } from './ipc'
 import { registerPetIpc } from './pet-ipc'
 import { registerBackupIpc } from './backup'
 import { registerPetPackIpc } from './pet-pack'
-import { registerTimerAssetsIpc } from './timer-assets'
+import { registerUiAssetsIpc } from './ui-assets'
 import { startReminderScheduler, stopReminderScheduler } from './reminder'
 import { registerShortcuts, unregisterShortcuts } from './shortcuts'
 import { store } from './store'
@@ -26,7 +26,7 @@ if (!gotLock) {
     registerPetIpc()
     registerBackupIpc()
     registerPetPackIpc()
-    registerTimerAssetsIpc()
+    registerUiAssetsIpc()
     createMainWindow()
     const petWin = createPetWindow()
     createTray()

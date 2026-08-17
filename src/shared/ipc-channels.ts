@@ -48,7 +48,6 @@ export const IPC = {
   petBeginDrag: 'pet:begin-drag',
   petEndDrag: 'pet:end-drag',
   petSetIgnoreMouse: 'pet:set-ignore-mouse',
-  petNotifyPomodoro: 'pet:notify-pomodoro',
   petCompleteTask: 'pet:complete-task',
   petSetSize: 'pet:set-size',
   petGetWorkArea: 'pet:get-work-area',
@@ -60,10 +59,7 @@ export const IPC = {
   petPackDelete: 'pet:pack:delete',
   petPackExport: 'pet:pack:export',
   petPackImport: 'pet:pack:import',
-  // 计时器资产（背景图 / BGM）
-  timerPickAsset: 'timer:pick-asset',
-  timerClearAsset: 'timer:clear-asset',
-  timerLoadAssets: 'timer:load-assets',
+  // 计时器资产（背景图 / BGM）——随独立计时页下线，v3 移除
   windowFocusMain: 'window:focus-main',
   windowOpenPanel: 'window:open-panel',
   /** 桌宠菜单「退出应用」（非窗口控件，程序级退出） */
@@ -74,7 +70,6 @@ export const IPC = {
 export const IPC_MAIN = {
   petBubble: 'pet:bubble',
   petVisibility: 'pet:visibility',
-  petPomodoro: 'pet:pomodoro',
   petAnim: 'pet:anim',
   petTodayTodos: 'pet:today-todos',
   petGoals: 'pet:goals',

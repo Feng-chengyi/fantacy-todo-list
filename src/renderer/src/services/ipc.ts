@@ -4,6 +4,7 @@
  */
 import type {
   AppConfig,
+  AssetPickResult,
   CountdownGoal,
   CreateTaskInput,
   ExportResult,
@@ -19,15 +20,11 @@ import type {
   PetPackImportResult,
   PetPackManifest,
   PetPackMeta,
-  PomodoroState,
   RepeatOverride,
   ShortcutAction,
   Task,
   TaskCollection,
   TaskStatus,
-  TimerAssetKind,
-  TimerAssetPickResult,
-  TimerAssets,
 } from '../../../shared/types'
 
 export function loadData(): Promise<FullData> {
@@ -119,7 +116,7 @@ export function batchDeleteTasks(taskIds: string[]): Promise<FullData> {
 }
 
 /** v3 主题：选择背景图片并落盘 */
-export function pickBgImage(): Promise<TimerAssetPickResult> {
+export function pickBgImage(): Promise<AssetPickResult> {
   return window.api.pickBgImage()
 }
 
@@ -162,10 +159,6 @@ export function setPetVisible(visible: boolean): Promise<void> {
   return window.api.setPetVisible(visible)
 }
 
-export function notifyPomodoro(state: PomodoroState): Promise<void> {
-  return window.api.notifyPomodoro(state)
-}
-
 /** 通知桌宠播放联动动画（timing / finishing / jumping） */
 export function notifyPetAnim(notice: PetAnimNotice): Promise<void> {
   return window.api.notifyPetAnim(notice)
@@ -206,18 +199,6 @@ export function exportData(): Promise<ExportResult> {
 
 export function importData(): Promise<ImportResult> {
   return window.api.importData()
-}
-
-export function timerPickAsset(kind: TimerAssetKind): Promise<TimerAssetPickResult> {
-  return window.api.timerPickAsset(kind)
-}
-
-export function timerClearAsset(kind: TimerAssetKind): Promise<void> {
-  return window.api.timerClearAsset(kind)
-}
-
-export function timerLoadAssets(): Promise<TimerAssets> {
-  return window.api.timerLoadAssets()
 }
 
 export function commitFocusSession(session: FocusSession): Promise<FocusCommitResult> {

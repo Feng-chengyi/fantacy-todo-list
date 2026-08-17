@@ -44,8 +44,6 @@ function validBundle(): BackupBundle {
       confettiEnabled: true,
       weekStart: 1,
       theme: 'system',
-      pomodoroFocusMinutes: 25,
-      pomodoroBreakMinutes: 5,
       showNotesInCalendar: true,
       noteTruncateLength: 30,
     },
@@ -182,12 +180,6 @@ describe('validateBackupBundle', () => {
   it('data.version 非数字失败', () => {
     const b = validBundle()
     ;(b.data as unknown as Record<string, unknown>).version = '1'
-    expect(validateBackupBundle(b).ok).toBe(false)
-  })
-
-  it('pomodoroFocusMinutes 类型错误失败', () => {
-    const b = validBundle()
-    ;(b.config as unknown as Record<string, unknown>).pomodoroFocusMinutes = '25'
     expect(validateBackupBundle(b).ok).toBe(false)
   })
 
@@ -404,84 +396,5 @@ describe('validateBackupBundle sessions / 计时器新字段', () => {
       { id: 's1', taskId: '', startedAt: 'a', endedAt: 'b', durationSec: -1 },
     ]
     expect(validateBackupBundle(b).ok).toBe(false)
-  })
-
-  it('timerClockStyle 非法枚举失败，flip/digital 通过', () => {
-    const bad = validBundle()
-    ;(bad.config as unknown as Record<string, unknown>).timerClockStyle = 'roman'
-    expect(validateBackupBundle(bad).ok).toBe(false)
-    for (const style of ['flip', 'digital']) {
-      const b = validBundle()
-      ;(b.config as unknown as Record<string, unknown>).timerClockStyle = style
-      expect(validateBackupBundle(b).ok).toBe(true)
-    }
-  })
-
-  it('timerQuotes 非字符串数组失败', () => {
-    const b = validBundle()
-    ;(b.config as unknown as Record<string, unknown>).timerQuotes = ['ok', 123]
-    expect(validateBackupBundle(b).ok).toBe(false)
-  })
-})
-
-describe('validateBackupBundle assets 内联资产（QA Bug 3）', () => {
-  it('合法 data URL 资产通过并透传给导入流程', () => {
-    const b = validBundle()
-    b.assets = { bg: 'data:image/png;base64,aGVsbG8=', bgm: 'data:audio/mpeg;base64,aGVsbG8=' }
-    const res = validateBackupBundle(b)
-    expect(res.ok).toBe(true)
-    if (res.ok) {
-      expect(res.assets?.bg).toBe('data:image/png;base64,aGVsbG8=')
-      expect(res.assets?.bgm).toBe('data:audio/mpeg;base64,aGVsbG8=')
-    }
-  })
-
-  it('旧备份缺 assets 兼容（导入时按无资产处理）', () => {
-    const b = validBundle()
-    const res = validateBackupBundle(b)
-    expect(res.ok).toBe(true)
-    if (res.ok) expect(res.assets).toBeUndefined()
-  })
-
-  it('assets 缺 bg / bgm 单边合法（只内联了背景图）', () => {
-    const b = validBundle()
-    b.assets = { bg: 'data:image/webp;base64,QUJD' }
-    const res = validateBackupBundle(b)
-    expect(res.ok).toBe(true)
-    if (res.ok) {
-      expect(res.assets?.bg).toBe('data:image/webp;base64,QUJD')
-      expect(res.assets?.bgm).toBeUndefined()
-    }
-  })
-
-  it('assets.bg 非字符串失败', () => {
-    const b = validBundle()
-    b.assets = { bg: 123 as never }
-    expect(validateBackupBundle(b).ok).toBe(false)
-  })
-
-  it('assets.bgm 非字符串失败', () => {
-    const b = validBundle()
-    b.assets = { bgm: null as never }
-    expect(validateBackupBundle(b).ok).toBe(false)
-  })
-
-  it('assets 非对象失败', () => {
-    const b = validBundle()
-    ;(b as unknown as Record<string, unknown>).assets = 'oops'
-    expect(validateBackupBundle(b).ok).toBe(false)
-  })
-
-  it('导入时 config 的机器相关资产路径被剥离（timerBgPath / timerBgmPath 置空）', () => {
-    const b = validBundle()
-    ;(b.config as unknown as Record<string, unknown>).timerBgPath = 'C:\\Users\\old\\assets\\timer-bg.png'
-    ;(b.config as unknown as Record<string, unknown>).timerBgmPath = '/home/old/assets/timer-bgm.mp3'
-    const res = validateBackupBundle(b)
-    expect(res.ok).toBe(true)
-    if (res.ok) {
-      // 路径合法性可透传，但由 main/backup.restoreAssets 统一改写为本机路径；
-      // 此处只验证校验层不因绝对路径字段拒绝备份
-      expect(res.config).toBeTruthy()
-    }
   })
 })

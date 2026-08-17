@@ -1,5 +1,5 @@
 /**
- * 专注计时领域纯函数单测（QA Bug 1 / O1 / O2 / O5 / O6 对应纯函数）。
+ * 专注计时领域纯函数单测（QA Bug 1 / O1 对应纯函数）。
  */
 import { describe, expect, it, vi } from 'vitest'
 import type { FullData, FocusSession, Task, TimerState } from './types'
@@ -8,11 +8,8 @@ import {
   applyFocusCommit,
   applyFocusDelete,
   applyFocusReset,
-  buildPomodoroSession,
   isSameTimerInstance,
-  selectTimerCandidates,
   sessionLocalDate,
-  shouldAutoplayBgm,
   shouldRecordFocus,
   timerElapsedMs,
 } from './focus'
@@ -225,70 +222,6 @@ describe('applyFocusReset 一键重置全部统计数据', () => {
     applyFocusReset(data)
     expect(data.tasks[0].durationSec).toBe(100)
     expect(data.sessions).toHaveLength(1)
-  })
-})
-
-describe('buildPomodoroSession 番茄专注完成 → 会话（O2）', () => {
-  it('由结束时刻回推开始时刻，时长与阶段一致', () => {
-    const endedAtMs = Date.parse('2025-08-15T10:25:00.000Z')
-    const s = buildPomodoroSession(25 * 60, endedAtMs)
-    expect(s.durationSec).toBe(1500)
-    expect(s.endedAt).toBe('2025-08-15T10:25:00.000Z')
-    expect(Date.parse(s.startedAt)).toBe(endedAtMs - 1500 * 1000)
-    expect(s.taskId).toBe('') // 自由计时
-  })
-})
-
-describe('shouldAutoplayBgm 自动播放决策（O5）', () => {
-  it('三条件全满足才自动播放', () => {
-    expect(shouldAutoplayBgm({ autoplay: true, userPaused: false, bgmLoaded: true })).toBe(true)
-  })
-  it('任一条件不满足均不播放', () => {
-    expect(shouldAutoplayBgm({ autoplay: false, userPaused: false, bgmLoaded: true })).toBe(false)
-    expect(shouldAutoplayBgm({ autoplay: true, userPaused: true, bgmLoaded: true })).toBe(false)
-    expect(shouldAutoplayBgm({ autoplay: true, userPaused: false, bgmLoaded: false })).toBe(false)
-  })
-})
-
-describe('selectTimerCandidates 计时面板候选（O6：放宽全部 pending）', () => {
-  it('只含 pending 任务（done / abandoned 排除）', () => {
-    const tasks = [
-      task({ id: 'p1', date: '2025-08-16' }),
-      task({ id: 'd1', date: '2025-08-16', status: 'done' }),
-      task({ id: 'a1', date: '2025-08-16', status: 'abandoned' }),
-    ]
-    expect(selectTimerCandidates(tasks).map((t) => t.id)).toEqual(['p1'])
-  })
-
-  it('不限今日：未来与过去日期任务均在候选内，按日期升序', () => {
-    const tasks = [
-      task({ id: 'future', date: '2025-09-01' }),
-      task({ id: 'past', date: '2025-08-01' }),
-      task({ id: 'today', date: '2025-08-15' }),
-    ]
-    expect(selectTimerCandidates(tasks).map((t) => t.id)).toEqual(['past', 'today', 'future'])
-  })
-
-  it('收集箱（date=null）殿后', () => {
-    const tasks = [
-      task({ id: 'inbox', date: null }),
-      task({ id: 'dated', date: '2099-01-01' }),
-    ]
-    expect(selectTimerCandidates(tasks).map((t) => t.id)).toEqual(['dated', 'inbox'])
-  })
-
-  it('同日期内按标题排序（顺序稳定）', () => {
-    const tasks = [
-      task({ id: 'b', date: '2025-08-15', title: '背单词' }),
-      task({ id: 'a', date: '2025-08-15', title: '阅读' }),
-    ]
-    expect(selectTimerCandidates(tasks).map((t) => t.id)).toEqual(['b', 'a'])
-  })
-
-  it('不修改入参数组顺序', () => {
-    const tasks = [task({ id: 'inbox', date: null }), task({ id: 'dated', date: '2025-08-15' })]
-    selectTimerCandidates(tasks)
-    expect(tasks.map((t) => t.id)).toEqual(['inbox', 'dated'])
   })
 })
 

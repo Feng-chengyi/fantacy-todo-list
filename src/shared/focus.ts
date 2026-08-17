@@ -1,13 +1,10 @@
 /**
- * 专注计时（正向计时 / 番茄钟）领域纯函数：
+ * 专注计时领域纯函数（v3：计时下沉为待办附属动作，无独立计时页）：
  * - shouldRecordFocus：专注记录下限（< MIN_FOCUS_RECORD_SEC 不落库）
  * - applyFocusCommit：单写者一次原子提交（追加会话 + 累加任务 durationSec），
  *   消除「双写 IPC 中途失败导致 durationSec 与 sessions 漂移」的风险
  * - applyFocusDelete / applyFocusClearRange / applyFocusReset：统计数据清除
  *   （单条 / 指定周期 / 全部重置，连带回滚绑定任务 durationSec）
- * - buildPomodoroSession：番茄专注阶段完成 → 会话记录
- * - shouldAutoplayBgm：BGM 自动播放决策（仅计时开始且用户未手动暂停）
- * - selectTimerCandidates：计时面板候选任务（全部 pending，按日期升序、收集箱殿后）
  */
 import { MIN_FOCUS_RECORD_SEC } from './defaults'
 import type { FocusSession, FullData, Task, TimerState } from './types'
@@ -111,45 +108,4 @@ export function applyFocusReset(data: FullData): FullData {
     tasks: data.tasks.map((t) => ({ ...t, durationSec: 0 })),
     sessions: [],
   }
-}
-
-/**
- * 番茄专注阶段自然完成（倒数到 0）→ 生成一条自由计时会话。
- * startedAt 由结束时刻回推总时长，保证统计区间归属正确。
- */
-export function buildPomodoroSession(totalSeconds: number, endedAtMs: number): FocusSession {
-  const startedAtMs = endedAtMs - totalSeconds * 1000
-  return {
-    id: `pomodoro-${endedAtMs}`,
-    taskId: '',
-    startedAt: new Date(startedAtMs).toISOString(),
-    endedAt: new Date(endedAtMs).toISOString(),
-    durationSec: totalSeconds,
-    occurrenceDate: null,
-  }
-}
-
-/** BGM 自动播放决策：需同时满足「开启自动播放、未手动暂停、已加载音乐」 */
-export function shouldAutoplayBgm(opts: {
-  autoplay: boolean
-  userPaused: boolean
-  bgmLoaded: boolean
-}): boolean {
-  return opts.autoplay && !opts.userPaused && opts.bgmLoaded
-}
-
-/**
- * 计时面板候选任务：全部 pending 任务（不限今日），按日期升序，收集箱殿后，
- * 同日期内按标题排序，保证下拉顺序稳定。
- */
-export function selectTimerCandidates(tasks: Task[]): Task[] {
-  return tasks
-    .filter((t) => t.status === 'pending')
-    .sort((a, b) => {
-      if (a.date === null && b.date === null) return a.title.localeCompare(b.title, 'zh')
-      if (a.date === null) return 1
-      if (b.date === null) return -1
-      if (a.date !== b.date) return a.date < b.date ? -1 : 1
-      return a.title.localeCompare(b.title, 'zh')
-    })
 }

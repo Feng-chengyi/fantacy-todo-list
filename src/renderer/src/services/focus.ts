@@ -64,27 +64,54 @@ export async function commitFocus(): Promise<boolean> {
  * 切换计时的唯一入口：先提交上一个任务的计时（不丢时长），再开始新计时。
  * 任务仓库行 ▶ / 编辑弹窗「开始计时」均使用。
  * occurrenceDate：重复任务的实例日期（日期隔离）；非重复任务传 null。
+ * 防抖（PRD 边界 4）：进行中的切换未完成前忽略再次触发，防止双击重置计时丢时长。
  */
+let switching = false
 export async function switchTimer(taskId: string, occurrenceDate: string | null = null): Promise<void> {
-  await commitFocus()
-  useUiStore.getState().startTimer(taskId, occurrenceDate)
-  void api.notifyPetAnim({ anim: 'timing', active: true })
+  if (switching) return
+  switching = true
+  try {
+    await commitFocus()
+    useUiStore.getState().startTimer(taskId, occurrenceDate)
+    void api.notifyPetAnim({ anim: 'timing', active: true })
+  } finally {
+    switching = false
+  }
 }
 
 /**
  * v3 快捷计时（兜底场景）：不新建正式任务时，在收集箱生成一条临时任务并直接开表。
+ * 防抖（PRD 边界 4）：in-flight 期间忽略重复触发，防止双击生成多条临时任务。
  */
+let quicking = false
 export async function quickTimer(): Promise<void> {
-  const now = new Date()
-  const hh = String(now.getHours()).padStart(2, '0')
-  const mm = String(now.getMinutes()).padStart(2, '0')
-  const { createTask } = useTaskStore.getState()
-  const task = await createTask({
-    title: `快捷计时 ${hh}:${mm}`,
-    priority: 'medium',
-    date: null,
-    taskType: 'normal',
-    collectionId: INBOX_ID,
-  })
-  await switchTimer(task.id, null)
+  if (quicking) return
+  quicking = true
+  try {
+    const now = new Date()
+    const hh = String(now.getHours()).padStart(2, '0')
+    const mm = String(now.getMinutes()).padStart(2, '0')
+    const { createTask } = useTaskStore.getState()
+    const task = await createTask({
+      title: `快捷计时 ${hh}:${mm}`,
+      priority: 'medium',
+      date: null,
+      taskType: 'normal',
+      collectionId: INBOX_ID,
+    })
+    await switchTimer(task.id, null)
+  } finally {
+    quicking = false
+  }
+}
+
+/**
+ * v3 重置计时（PRD 4.1.2）：丢弃当前进度重新开始——正向计时归零、倒计时回满时长。
+ * 与「停止」不同：不落库、不产生专注记录。
+ */
+export function resetTimer(): void {
+  const { timer, startTimer } = useUiStore.getState()
+  if (!timer) return
+  startTimer(timer.taskId, timer.occurrenceDate)
+  void api.notifyPetAnim({ anim: 'timing', active: true })
 }

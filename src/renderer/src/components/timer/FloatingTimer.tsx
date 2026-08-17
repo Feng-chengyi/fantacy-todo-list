@@ -9,7 +9,7 @@ import { formatHms } from '../../../../shared/time'
 import { timerElapsedMs } from '../../stores/uiStore'
 import { useUiStore } from '../../stores/uiStore'
 import { useTaskStore } from '../../stores/taskStore'
-import { commitFocus } from '../../services/focus'
+import { commitFocus, resetTimer } from '../../services/focus'
 
 /** 倒计时归零提示音（WebAudio 短促三连音，无外部资源依赖） */
 function playBeep(): void {
@@ -58,6 +58,8 @@ export function FloatingTimer() {
       if (isCountdown && task?.countdownSec) {
         const remain = Math.max(0, task.countdownSec - elapsedSec)
         setLabel(formatHms(remain))
+        // 重置/恢复后回满时长：复位归零提醒标志，再次归零可重新提醒
+        if (remain > 0 && firedRef.current) firedRef.current = false
         if (remain <= 0 && !firedRef.current) {
           firedRef.current = true
           playBeep()
@@ -99,6 +101,13 @@ export function FloatingTimer() {
             ⏸ 暂停
           </button>
         )}
+        <button
+          className="mini-btn timer-btn"
+          onClick={resetTimer}
+          title={isCountdown ? '重置倒计时（回满时长，不记录当前进度）' : '重置计时（归零，不记录当前进度）'}
+        >
+          ↻ 重置
+        </button>
         <button
           className="mini-btn timer-btn"
           onClick={() => {

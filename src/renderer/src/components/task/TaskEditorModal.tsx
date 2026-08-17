@@ -89,6 +89,16 @@ export function TaskEditorModal() {
     return tasks.filter((t) => t.id !== selfId && hasOverlapShim(candidate, t))
   }, [tasks, date, startTime, endTime, editor])
 
+  // ESC 快捷关闭（全局弹窗交互规范）
+  useEffect(() => {
+    if (!editor) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') closeEditor()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [editor, closeEditor])
+
   if (!editor) return null
 
   const isEdit = editor.task != null

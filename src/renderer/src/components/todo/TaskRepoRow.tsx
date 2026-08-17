@@ -3,7 +3,7 @@
  * 进度信息（习惯打卡 / 目标圆环+截止倒计时 / 累计专注）｜计时操作。
  * 计时启动后由悬浮窗接管走时；完成自动停止计时（时长保留）。
  */
-import type { MouseEvent } from 'react'
+import { useRef, type MouseEvent } from 'react'
 import type { Task } from '../../../../shared/types'
 import { taskColor } from '../../../../shared/defaults'
 import { isSameTimerInstance } from '../../../../shared/focus'
@@ -78,18 +78,31 @@ export function TaskRepoRow({ task, todaySec }: { task: Task; todaySec: number }
     setContextMenu({ task, x: e.clientX, y: e.clientY })
   }
 
+  // 高频操作防抖（PRD 边界 4）：同一动作 400ms 内的重复点击忽略，防双击翻转状态
+  const lastActionRef = useRef<{ key: string; at: number } | null>(null)
+  const debounced = (key: string, fn: () => void): void => {
+    const now = Date.now()
+    if (lastActionRef.current && lastActionRef.current.key === key && now - lastActionRef.current.at < 400) return
+    lastActionRef.current = { key, at: now }
+    fn()
+  }
+
   /** 勾选完成 / 撤销完成；完成时自动停止计时（已产生时长保留） */
   const toggleDone = (): void => {
     if (type === 'habit') return
-    if (!done && timer && isTiming) void commitFocus()
-    void setStatus(task.id, done ? 'pending' : 'done')
+    debounced(`done:${task.id}`, () => {
+      if (!done && timer && isTiming) void commitFocus()
+      void setStatus(task.id, done ? 'pending' : 'done')
+    })
   }
 
   /** 习惯打卡 / 撤销今日打卡 */
   const toggleCheckin = (): void => {
-    const checkins = task.habitCheckins ?? []
-    const next = checkedToday ? checkins.filter((d) => d !== today) : [...checkins, today]
-    void updateTask(task.id, { habitCheckins: next })
+    debounced(`checkin:${task.id}`, () => {
+      const checkins = task.habitCheckins ?? []
+      const next = checkedToday ? checkins.filter((d) => d !== today) : [...checkins, today]
+      void updateTask(task.id, { habitCheckins: next })
+    })
   }
 
   const canTime = type !== 'goal' && (task.timerKind ?? 'stopwatch') !== 'none' && !done && !abandoned

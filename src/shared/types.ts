@@ -183,28 +183,10 @@ export interface AppConfig {
   /** 0=周日 1=周一 */
   weekStart: number
   theme: string
-  /** 番茄钟专注时长（分钟） */
-  pomodoroFocusMinutes: number
-  /** 番茄钟休息时长（分钟） */
-  pomodoroBreakMinutes: number
   /** 月/周/日视图是否展示任务备注（截断） */
   showNotesInCalendar: boolean
   /** 备注截断长度（超长加「…」） */
   noteTruncateLength: number
-  /** 计时器面板背景图落盘路径（userData assets 下，null = 未设置） */
-  timerBgPath?: string | null
-  /** 计时器面板 BGM 落盘路径（null = 未设置） */
-  timerBgmPath?: string | null
-  /** BGM 音量 0-1 */
-  timerBgmVolume?: number
-  /** 计时开始时自动播放 BGM */
-  timerBgmAutoplay?: boolean
-  /** 背景图遮罩不透明度 0-0.8（保证前景可读） */
-  timerDim?: number
-  /** 计时器时钟风格：翻页时钟 / 电子时钟 */
-  timerClockStyle?: 'flip' | 'digital'
-  /** 用户自定义励志文案库（每条一行语义，空 = 使用内置文案池） */
-  timerQuotes?: string[]
   /** 新建任务默认提醒时间 HH:mm（缺省 09:00） */
   reminderDefaultTime?: string
   /** 提醒是否同时弹系统通知（缺省 true） */
@@ -289,25 +271,13 @@ export interface PetGoal {
   color: string
 }
 
-/** 番茄钟阶段 */
-export type PomodoroPhase = 'focus' | 'break' | 'idle'
-
-/** 番茄钟状态（同步给桌宠的陪伴状态） */
-export interface PomodoroState {
-  phase: PomodoroPhase
-  remainingSeconds: number
-  totalSeconds: number
-}
-
-/** 备份文件格式（单文件，data + config + 内联计时器资产） */
+/** 备份文件格式（单文件，data + config） */
 export interface BackupBundle {
   app: string
   backupVersion: number
   exportedAt: string
   data: FullData
   config: AppConfig
-  /** 计时器自定义背景图 / BGM（data URL 内联，跨机器可恢复；旧备份可缺省） */
-  assets?: TimerAssetBundle
 }
 
 /** 导出备份结果 */
@@ -317,25 +287,10 @@ export interface ExportResult {
   error?: string
 }
 
-/** 计时器可定制资产类型：背景图 / 背景音乐 */
-export type TimerAssetKind = 'bg' | 'bgm'
-
 /** 选择资产结果（canceled = 用户取消对话框） */
-export interface TimerAssetPickResult {
+export interface AssetPickResult {
   canceled: boolean
   dataUrl?: string
-}
-
-/** 已保存的计时器资产（data URL 形式，null = 未设置） */
-export interface TimerAssets {
-  bgUrl: string | null
-  bgmUrl: string | null
-}
-
-/** 备份内联的计时器资产（data URL；缺省 = 该资产未自定义） */
-export interface TimerAssetBundle {
-  bg?: string
-  bgm?: string
 }
 
 /** 一次专注原子提交的结果（返回更新后的任务；未绑定任务为 null） */
@@ -404,9 +359,6 @@ export interface ImportResult {
   config?: AppConfig
   error?: string
 }
-
-/** 计时模式：正向计时 / 番茄钟（统一计时页切换） */
-export type TimerMode = 'stopwatch' | 'pomodoro'
 
 /**
  * 正向计时器状态（进行中的秒表，不跨端持久化）。
@@ -478,17 +430,10 @@ export interface RendererApi {
   setConfig(patch: Partial<AppConfig>): Promise<AppConfig>
   showBubble(text: string): Promise<void>
   setPetVisible(visible: boolean): Promise<void>
-  notifyPomodoro(state: PomodoroState): Promise<void>
   exportData(): Promise<ExportResult>
   importData(): Promise<ImportResult>
-  /** 计时器：选择并落盘背景图/BGM，返回 data URL（canceled = 用户取消） */
-  timerPickAsset(kind: TimerAssetKind): Promise<TimerAssetPickResult>
-  /** 计时器：清除已设置的背景图/BGM（删除落盘文件并清空配置） */
-  timerClearAsset(kind: TimerAssetKind): Promise<void>
-  /** 计时器：启动时加载已保存的背景图/BGM data URL */
-  timerLoadAssets(): Promise<TimerAssets>
   /** v3 主题：选择背景图片并落盘，返回 data URL（canceled = 用户取消） */
-  pickBgImage(): Promise<TimerAssetPickResult>
+  pickBgImage(): Promise<AssetPickResult>
   /** v3 主题：清除背景图片（删除落盘文件） */
   clearBgImage(): Promise<void>
   /** 原子提交一次专注会话（追加 session + 累加绑定任务 durationSec，单次落盘） */
@@ -543,7 +488,6 @@ export interface PetRendererApi {
   quit(): Promise<void>
   onBubble(cb: (text: string) => void): () => void
   onVisibility(cb: (visible: boolean) => void): () => void
-  onPomodoro(cb: (state: PomodoroState) => void): () => void
   /** 订阅主窗口推送的联动动画通知（timing / finishing / jumping） */
   onAnim(cb: (notice: PetAnimNotice) => void): () => void
   /** 订阅主进程推送的今日待办列表（悬浮浮层数据源） */

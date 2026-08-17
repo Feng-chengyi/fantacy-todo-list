@@ -14,17 +14,8 @@ export const DEFAULT_CONFIG: AppConfig = {
   confettiEnabled: true,
   weekStart: 1,
   theme: 'system',
-  pomodoroFocusMinutes: 25,
-  pomodoroBreakMinutes: 5,
   showNotesInCalendar: true,
   noteTruncateLength: 30,
-  timerBgPath: null,
-  timerBgmPath: null,
-  timerBgmVolume: 0.6,
-  timerBgmAutoplay: false,
-  timerDim: 0.35,
-  timerClockStyle: 'digital',
-  timerQuotes: [],
   reminderDefaultTime: '09:00',
   reminderSystemNotification: true,
   appearance: 'system',
@@ -68,30 +59,6 @@ export const DEFAULT_SHORTCUTS: ReadonlyArray<{ action: ShortcutAction; accelera
 
 /** 专注记录下限（秒）：低于该时长的计时不计入任务用时与统计 */
 export const MIN_FOCUS_RECORD_SEC = 5
-
-/** 计时页内置励志文案池（用户未自定义 timerQuotes 时使用） */
-export const DEFAULT_TIMER_QUOTES: string[] = [
-  '专注当下，一件一件来。',
-  '你不需要完美开始，只需要开始。',
-  '每一段专注，都在悄悄改变你。',
-  '慢一点没关系，别停下就好。',
-  '把大事拆小，把小事做完。',
-  '今天的努力，是明天的底气。',
-  '心无旁骛，即是高效。',
-  '完成比完美更重要。',
-  '此刻的坚持，未来的你会感谢。',
-  '少想多做，行动治愈焦虑。',
-  '时间花在哪，答案就在哪。',
-  '一次只做一件事，做到最好。',
-  '所有的成长，都藏在重复里。',
-  '别急着看结果，先享受过程。',
-  '专注 25 分钟，胜过恍惚 2 小时。',
-  '困难的事情，值得慢慢做。',
-  '自律不是苦役，是自由的门票。',
-  '今天的份内事，今天做完。',
-  '稳住节奏，不被打扰带偏。',
-  '小步前进，也是前进。',
-]
 
 /**
  * 桌宠可选自绘角色清单（Codex 风格，精灵帧动画，

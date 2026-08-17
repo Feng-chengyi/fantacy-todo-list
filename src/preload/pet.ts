@@ -10,7 +10,6 @@ import type {
   PetGoal,
   PetPackEntry,
   PetRendererApi,
-  PomodoroState,
   TodayTodo,
   WorkAreaRect,
 } from '../shared/types'
@@ -38,11 +37,6 @@ const petApi: PetRendererApi = {
     const listener = (_event: IpcRendererEvent, visible: boolean): void => cb(visible)
     ipcRenderer.on(IPC_MAIN.petVisibility, listener)
     return () => ipcRenderer.removeListener(IPC_MAIN.petVisibility, listener)
-  },
-  onPomodoro: (cb: (state: PomodoroState) => void): (() => void) => {
-    const listener = (_event: IpcRendererEvent, state: PomodoroState): void => cb(state)
-    ipcRenderer.on(IPC_MAIN.petPomodoro, listener)
-    return () => ipcRenderer.removeListener(IPC_MAIN.petPomodoro, listener)
   },
   onAnim: (cb: (notice: PetAnimNotice) => void): (() => void) => {
     const listener = (_event: IpcRendererEvent, notice: PetAnimNotice): void => cb(notice)

@@ -3,7 +3,7 @@
  * - 主题与外观：明暗模式 / 主题色 / 背景（纯色/图片/模糊） / 界面透明度（本地持久化）；
  * - 原有能力：撒花 / 周起始 / 桌宠 / 番茄时长 / 数据备份导入导出。
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BG_COLOR_PRESETS, THEME_COLOR_PRESETS } from '../../../../shared/defaults'
 import { useConfigStore } from '../../stores/configStore'
 import { useUiStore } from '../../stores/uiStore'
@@ -17,8 +17,6 @@ export function SettingsPanel() {
   const confettiEnabled = useConfigStore((s) => s.confettiEnabled)
   const weekStart = useConfigStore((s) => s.weekStart)
   const petVisible = useConfigStore((s) => s.petVisible)
-  const focusMinutes = useConfigStore((s) => s.pomodoroFocusMinutes)
-  const breakMinutes = useConfigStore((s) => s.pomodoroBreakMinutes)
   const appearance = useConfigStore((s) => s.appearance ?? 'system')
   const themeColor = useConfigStore((s) => s.themeColor ?? '#6c5ce7')
   const bgMode = useConfigStore((s) => s.bgMode ?? 'plain')
@@ -72,6 +70,16 @@ export function SettingsPanel() {
     await update({ bgImage: null, bgMode: 'plain' })
     setBgMsg('已恢复纯色背景')
   }
+
+  // ESC 快捷关闭（全局弹窗交互规范）
+  useEffect(() => {
+    if (!showSettings) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setShowSettings(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [showSettings, setShowSettings])
 
   if (!showSettings) return null
 
@@ -251,31 +259,6 @@ export function SettingsPanel() {
             打开向导
           </button>
         </div>
-
-        {/* ============ 计时 ============ */}
-        <div className="setting-subhead">计时</div>
-
-        <label className="setting-row">
-          <span>番茄·专注时长（分钟）</span>
-          <input
-            type="number"
-            min={1}
-            className="input w-20"
-            value={focusMinutes}
-            onChange={(e) => void update({ pomodoroFocusMinutes: Math.max(1, Math.floor(Number(e.target.value) || 1)) })}
-          />
-        </label>
-
-        <label className="setting-row">
-          <span>番茄·休息时长（分钟）</span>
-          <input
-            type="number"
-            min={1}
-            className="input w-20"
-            value={breakMinutes}
-            onChange={(e) => void update({ pomodoroBreakMinutes: Math.max(1, Math.floor(Number(e.target.value) || 1)) })}
-          />
-        </label>
 
         {/* ============ 数据 ============ */}
         <div className="setting-subhead">数据</div>

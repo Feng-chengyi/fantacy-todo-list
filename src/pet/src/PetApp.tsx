@@ -21,14 +21,12 @@ import type {
 import type {
   PetGoal,
   PetCharacterId,
-  PomodoroState,
   TodayTodo,
   WorkAreaRect,
 } from '../../shared/types'
 import { PET_CHARACTERS } from '../../shared/defaults'
 import { computePetWindowSize, screenAwareOffset } from '../../shared/petWindow'
 import { Bubble } from './bubble'
-import { PomodoroBadge } from './PomodoroBadge'
 import { TodayOverlay } from './TodayOverlay'
 import { firePetConfetti } from './confetti'
 import { SpritePetStage } from './sprite/SpritePetStage'
@@ -91,7 +89,6 @@ export function PetApp() {
   const [menu, setMenu] = useState<MenuState | null>(null)
   const [showRoles, setShowRoles] = useState(false)
   const [bubble, setBubble] = useState<string | null>(null)
-  const [pomodoro, setPomodoro] = useState<PomodoroState | null>(null)
   const [todos, setTodos] = useState<TodayTodo[]>([])
   const [goals, setGoals] = useState<PetGoal[]>([])
   const [hovering, setHovering] = useState(false)
@@ -242,7 +239,6 @@ export function PetApp() {
     const offBubble = window.petApi.onBubble((text) => {
       showBubble(text, 4000)
     })
-    const offPomodoro = window.petApi.onPomodoro((state) => setPomodoro(state))
     // 主窗口联动动画：timing（正向计时）/ finishing（任务完成）/ jumping（番茄完成）
     const offAnim = window.petApi.onAnim((notice) => {
       if (notice.anim === 'timing') setTiming(notice.active === true)
@@ -255,7 +251,6 @@ export function PetApp() {
     return () => {
       disposed = true
       offBubble()
-      offPomodoro()
       offAnim()
       offTodayTodos()
       offGoals()
@@ -452,7 +447,6 @@ export function PetApp() {
       )}
 
       <Bubble text={bubble ?? ''} style={bubbleStyle} rootRef={bubbleRef} />
-      <PomodoroBadge state={pomodoro} />
 
       {menu && menuPos && (
         <div

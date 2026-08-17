@@ -6,6 +6,7 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import { IPC, IPC_MAIN } from '../shared/ipc-channels'
 import type {
   AppConfig,
+  AssetPickResult,
   CountdownGoal,
   CreateTaskInput,
   ExportResult,
@@ -21,16 +22,12 @@ import type {
   PetPackImportResult,
   PetPackManifest,
   PetPackMeta,
-  PomodoroState,
   RendererApi,
   RepeatOverride,
   ShortcutAction,
   Task,
   TaskCollection,
   TaskStatus,
-  TimerAssetKind,
-  TimerAssetPickResult,
-  TimerAssets,
 } from '../shared/types'
 
 const api: RendererApi = {
@@ -68,7 +65,6 @@ const api: RendererApi = {
   setConfig: (patch: Partial<AppConfig>): Promise<AppConfig> => ipcRenderer.invoke(IPC.configSet, patch),
   showBubble: (text: string): Promise<void> => ipcRenderer.invoke(IPC.petShowBubble, text),
   setPetVisible: (visible: boolean): Promise<void> => ipcRenderer.invoke(IPC.petSetVisible, visible),
-  notifyPomodoro: (state: PomodoroState): Promise<void> => ipcRenderer.invoke(IPC.petNotifyPomodoro, state),
   notifyPetAnim: (notice: PetAnimNotice): Promise<void> => ipcRenderer.invoke(IPC.petNotifyAnim, notice),
   petPackList: (): Promise<PetPackEntry[]> => ipcRenderer.invoke(IPC.petPackList),
   petPackSave: (manifest: PetPackManifest, spritesheetBase64: string, sourceName?: string): Promise<PetPackMeta> =>
@@ -78,11 +74,7 @@ const api: RendererApi = {
   petPackImport: (): Promise<PetPackImportResult> => ipcRenderer.invoke(IPC.petPackImport),
   exportData: (): Promise<ExportResult> => ipcRenderer.invoke(IPC.dataExport),
   importData: (): Promise<ImportResult> => ipcRenderer.invoke(IPC.dataImport),
-  timerPickAsset: (kind: TimerAssetKind): Promise<TimerAssetPickResult> =>
-    ipcRenderer.invoke(IPC.timerPickAsset, kind),
-  timerClearAsset: (kind: TimerAssetKind): Promise<void> => ipcRenderer.invoke(IPC.timerClearAsset, kind),
-  timerLoadAssets: (): Promise<TimerAssets> => ipcRenderer.invoke(IPC.timerLoadAssets),
-  pickBgImage: (): Promise<TimerAssetPickResult> => ipcRenderer.invoke(IPC.uiPickBgImage),
+  pickBgImage: (): Promise<AssetPickResult> => ipcRenderer.invoke(IPC.uiPickBgImage),
   clearBgImage: (): Promise<void> => ipcRenderer.invoke(IPC.uiClearBgImage),
   commitFocusSession: (session: FocusSession): Promise<FocusCommitResult> =>
     ipcRenderer.invoke(IPC.focusCommit, session),

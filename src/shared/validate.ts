@@ -2,7 +2,7 @@
  * 备份文件校验（纯函数，主进程与单测共用）。
  * 校验通过才允许覆盖现有数据；失败绝不改动现有数据。
  */
-import type { AppConfig, FullData, TimerAssetBundle } from './types'
+import type { AppConfig, FullData } from './types'
 import { DATA_VERSION, isPetCharacterId, mergeConfig } from './defaults'
 import { normalizeHabit, type HabitInput } from './habit'
 
@@ -12,7 +12,7 @@ const ACTIONS = ['done', 'skipped']
 const REPEAT_TYPES = ['daily', 'weekly', 'monthly', 'yearly', 'custom']
 
 export type ValidateResult =
-  | { ok: true; data: FullData; config: AppConfig; assets?: TimerAssetBundle }
+  | { ok: true; data: FullData; config: AppConfig }
   | { ok: false; error: string }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -172,12 +172,6 @@ export function validateBackupBundle(json: unknown): ValidateResult {
   if (typeof cfg.petPosition.x !== 'number' || typeof cfg.petPosition.y !== 'number') {
     return { ok: false, error: 'config.petPosition 类型错误' }
   }
-  if (cfg.pomodoroFocusMinutes !== undefined && typeof cfg.pomodoroFocusMinutes !== 'number') {
-    return { ok: false, error: 'config.pomodoroFocusMinutes 类型错误' }
-  }
-  if (cfg.pomodoroBreakMinutes !== undefined && typeof cfg.pomodoroBreakMinutes !== 'number') {
-    return { ok: false, error: 'config.pomodoroBreakMinutes 类型错误' }
-  }
   // selectedCharacter 为当前字段：存在则必须为非空字符串（自定义宠物 id 为任意
   // normalizePetId 字符串，不再要求内置枚举；桌宠端加载时对未知 id 运行时回落 bubcat）。
   // 旧备份的 selectedModel（Live2D 时代命名）兼容迁移，仍要求合法内置枚举
@@ -194,31 +188,12 @@ export function validateBackupBundle(json: unknown): ValidateResult {
   if (cfg.noteTruncateLength !== undefined && typeof cfg.noteTruncateLength !== 'number') {
     return { ok: false, error: 'config.noteTruncateLength 类型错误' }
   }
-  // 计时器时钟风格：旧备份可缺省，存在则必须合法枚举
-  if (cfg.timerClockStyle !== undefined && cfg.timerClockStyle !== 'flip' && cfg.timerClockStyle !== 'digital') {
-    return { ok: false, error: 'config.timerClockStyle 非法' }
-  }
-  // 自定义文案库：旧备份可缺省，存在则必须为字符串数组
-  if (cfg.timerQuotes !== undefined) {
-    if (!Array.isArray(cfg.timerQuotes) || cfg.timerQuotes.some((q) => typeof q !== 'string')) {
-      return { ok: false, error: 'config.timerQuotes 类型错误' }
-    }
-  }
   // 提醒相关配置：旧备份可缺省，存在则必须类型正确
   if (cfg.reminderDefaultTime !== undefined && !isString(cfg.reminderDefaultTime)) {
     return { ok: false, error: 'config.reminderDefaultTime 类型错误' }
   }
   if (cfg.reminderSystemNotification !== undefined && typeof cfg.reminderSystemNotification !== 'boolean') {
     return { ok: false, error: 'config.reminderSystemNotification 类型错误' }
-  }
-
-  // 内联计时器资产（背景图 / BGM data URL）：旧备份可缺省，存在则必须合法
-  if (json.assets !== undefined) {
-    if (!isRecord(json.assets)) return { ok: false, error: 'assets 不是对象' }
-    for (const key of ['bg', 'bgm'] as const) {
-      const v = (json.assets as Record<string, unknown>)[key]
-      if (v !== undefined && !isString(v)) return { ok: false, error: `assets.${key} 类型错误` }
-    }
   }
 
   return {
@@ -240,6 +215,5 @@ export function validateBackupBundle(json: unknown): ValidateResult {
       selectedCharacter:
         json.config.selectedCharacter ?? (isPetCharacterId(json.config.selectedModel) ? json.config.selectedModel : undefined),
     }) as unknown as AppConfig,
-    assets: isRecord(json.assets) ? (json.assets as unknown as TimerAssetBundle) : undefined,
-  } as { ok: true; data: FullData; config: AppConfig; assets?: TimerAssetBundle }
+  }
 }
