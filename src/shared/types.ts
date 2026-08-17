@@ -429,6 +429,8 @@ export interface RendererApi {
   onOpenPanel(cb: (panel: MainPanel) => void): () => void
   /** 订阅主进程推送的「数据已变更」通知（触发 store 重载同步） */
   onDataChanged(cb: () => void): () => void
+  /** 订阅主进程推送的「配置已变更」通知（桌宠右键/托盘等跨入口写配置后同步 configStore） */
+  onConfigChanged(cb: (config: AppConfig) => void): () => void
   /** 订阅主进程推送的全局快捷键动作（newTask / openTimer / openSearch） */
   onShortcut(cb: (action: ShortcutAction) => void): () => void
 }

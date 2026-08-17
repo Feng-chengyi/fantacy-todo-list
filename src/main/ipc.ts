@@ -5,7 +5,8 @@
 import { ipcMain } from 'electron'
 import { randomUUID } from 'crypto'
 import { store } from './store'
-import { IPC } from '../shared/ipc-channels'
+import { getMainWindow } from './windows'
+import { IPC, IPC_MAIN } from '../shared/ipc-channels'
 import { applyFocusClearRange, applyFocusCommit, applyFocusDelete, applyFocusReset } from '../shared/focus'
 import { applyTaskStatus, shiftRepeatOnMove } from '../shared/taskOps'
 import { normalizeHabit } from '../shared/habit'
@@ -192,7 +193,11 @@ export function registerDataIpc(): void {
   ipcMain.handle(IPC.configGet, (): AppConfig => store.getConfig())
 
   ipcMain.handle(IPC.configSet, (_event, patch: Partial<AppConfig>): AppConfig => {
-    return store.setConfig(patch, { debounce: true })
+    const cfg = store.setConfig(patch, { debounce: true })
+    // 广播配置变更：任一窗口（主窗口/桌宠端）写配置后，主窗口 configStore 同步刷新，
+    // 保证桌宠显隐等跨入口状态永远同源
+    getMainWindow()?.webContents.send(IPC_MAIN.configChanged, cfg)
+    return cfg
   })
 
   ipcMain.handle(

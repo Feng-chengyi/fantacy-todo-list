@@ -9,6 +9,8 @@ import * as api from '../services/ipc'
 interface ConfigState extends AppConfig {
   loaded: boolean
   load: () => Promise<void>
+  /** 应用主进程推送的最新配置（config:changed 广播，保证跨入口状态同源） */
+  applyConfig: (cfg: AppConfig) => void
   update: (patch: Partial<AppConfig>) => Promise<void>
 }
 
@@ -21,6 +23,8 @@ export const useConfigStore = create<ConfigState>((set) => ({
     const cfg = await api.getConfig()
     set({ ...cfg, loaded: true })
   },
+
+  applyConfig: (cfg) => set({ ...cfg }),
 
   update: async (patch) => {
     const cfg = await api.setConfig(patch)

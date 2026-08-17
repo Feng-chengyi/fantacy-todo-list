@@ -1,6 +1,7 @@
 /**
  * 左侧栏：一级导航（待办/收集箱/时间轴/统计/习惯/倒数日/计时）+
- * 筛选（全部/未完成/已完成/已放弃，作用于待办与列表任务）。
+ * 筛选（全部/未完成/已完成/已放弃，作用于待办任务仓库与收集箱）。
+ * 使用说明入口唯一化：仅保留顶部工具栏「帮助」，侧栏不再重复。
  */
 import { useTaskStore } from '../../stores/taskStore'
 import { useUiStore, type Page, type TaskFilter } from '../../stores/uiStore'
@@ -27,7 +28,6 @@ export function Sidebar() {
   const setFilter = useUiStore((s) => s.setFilter)
   const page = useUiStore((s) => s.page)
   const setPage = useUiStore((s) => s.setPage)
-  const setShowHelp = useUiStore((s) => s.setShowHelp)
   const timerRunning = useUiStore((s) => s.timer !== null)
   const inboxCount = useTaskStore((s) => s.tasks.filter((t) => t.date === null && t.status !== 'abandoned').length)
 
@@ -60,12 +60,6 @@ export function Sidebar() {
           {f.label}
         </button>
       ))}
-
-      <div className="mt-auto pt-3">
-        <button className="side-item" onClick={() => setShowHelp(true)}>
-          <span>📖 使用说明</span>
-        </button>
-      </div>
     </aside>
   )
 }

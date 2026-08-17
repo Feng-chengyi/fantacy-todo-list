@@ -28,7 +28,6 @@ export interface EditorState {
 
 export interface ContextMenuState {
   task: Task
-  occurrenceDate?: string
   x: number
   y: number
 }

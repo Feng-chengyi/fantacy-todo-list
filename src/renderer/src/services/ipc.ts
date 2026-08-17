@@ -107,6 +107,11 @@ export function onDataChanged(cb: () => void): () => void {
   return window.api.onDataChanged(cb)
 }
 
+/** 订阅主进程推送的「配置已变更」（桌宠右键/托盘等跨入口写配置后同步 configStore） */
+export function onConfigChanged(cb: (config: AppConfig) => void): () => void {
+  return window.api.onConfigChanged(cb)
+}
+
 /** 订阅主进程推送的全局快捷键动作（newTask / openTimer / openSearch） */
 export function onShortcut(cb: (action: ShortcutAction) => void): () => void {
   return window.api.onShortcut(cb)

@@ -178,7 +178,7 @@ export function hidePetWindow(): void {
 
 export function setPetVisible(visible: boolean): void {
   // 先持久化再操作窗口：若桌宠窗口已被销毁需重建，createPetWindow 能读到正确的 petVisible
-  store.setConfig({ petVisible: visible })
+  const cfg = store.setConfig({ petVisible: visible })
   if (visible) {
     showPetWindow()
   } else {
@@ -186,4 +186,6 @@ export function setPetVisible(visible: boolean): void {
   }
   // 通知桌宠窗口显隐变化（preload onVisibility 订阅）
   petWindow?.webContents.send(IPC_MAIN.petVisibility, visible)
+  // 广播配置变更：主窗口设置页「显示桌宠」勾选框与各入口状态永远同源（双向同步修复）
+  mainWindow?.webContents.send(IPC_MAIN.configChanged, cfg)
 }

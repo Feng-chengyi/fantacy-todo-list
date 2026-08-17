@@ -94,6 +94,11 @@ const api: RendererApi = {
     ipcRenderer.on(IPC_MAIN.dataChanged, listener)
     return () => ipcRenderer.removeListener(IPC_MAIN.dataChanged, listener)
   },
+  onConfigChanged: (cb: (config: AppConfig) => void): (() => void) => {
+    const listener = (_event: IpcRendererEvent, config: AppConfig): void => cb(config)
+    ipcRenderer.on(IPC_MAIN.configChanged, listener)
+    return () => ipcRenderer.removeListener(IPC_MAIN.configChanged, listener)
+  },
   onShortcut: (cb: (action: ShortcutAction) => void): (() => void) => {
     const listener = (_event: IpcRendererEvent, action: ShortcutAction): void => cb(action)
     ipcRenderer.on(IPC_MAIN.shortcut, listener)

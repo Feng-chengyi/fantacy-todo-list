@@ -32,7 +32,7 @@ export function TimelinePanel() {
 
   let label: string
   if (isList) {
-    label = '全部任务 · 按日期分组'
+    label = '专注记录 · 按日期分组'
   } else if (isWeek) {
     const days = weekDates(selectedDate ?? todayStr(), weekStart)
     label = `${format(parseLocal(days[0]), 'M 月 d 日')} – ${format(parseLocal(days[6]), 'M 月 d 日')}`

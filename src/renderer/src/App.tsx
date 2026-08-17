@@ -51,6 +51,14 @@ export default function App(): JSX.Element {
     })
   }, [refreshData])
 
+  // 订阅主进程「配置已变更」推送（桌宠右键隐藏/托盘开关等跨入口写配置），
+  // 同步 configStore，保证设置页「显示桌宠」勾选框与桌宠实际状态永远一致。
+  useEffect(() => {
+    return ipc.onConfigChanged((cfg) => {
+      useConfigStore.getState().applyConfig(cfg)
+    })
+  }, [])
+
   // 订阅主进程推送的「打开面板」请求（桌宠右键快捷入口 / 任务提醒点击）
   useEffect(() => {
     return ipc.onOpenPanel((panel) => {

@@ -1,63 +1,50 @@
 /**
- * 单日格：今日高亮、任务数、优先级色条、任务卡列表、可落点、点击新建。
+ * 单日格（时间轴月视图）：今日高亮、当日专注记录胶囊、当日汇总分钟数。
+ * 只展示已落库的专注会话，不展示任何任务占位。
  */
-import { useDroppable } from '@dnd-kit/core'
 import { todayStr } from '../../../../shared/date'
-import { useOccurrencesForDate } from '../../hooks/useOccurrences'
+import { useSessionsByDate } from '../../hooks/useSessionsByDate'
+import { useTaskStore } from '../../stores/taskStore'
 import { useUiStore } from '../../stores/uiStore'
-import { dayDropId } from '../../hooks/useDragDate'
-import { TaskCard } from './TaskCard'
+import { SessionPill } from './SessionViews'
 
 const MAX_VISIBLE = 3
 
-export function DayCell({ date, isDropTarget }: { date: string; isDropTarget: boolean }) {
-  const occurrences = useOccurrencesForDate(date)
-  const openCreate = useUiStore((s) => s.openCreate)
+export function DayCell({ date }: { date: string }) {
+  const byDate = useSessionsByDate()
+  const tasks = useTaskStore((s) => s.tasks)
   const selectedDate = useUiStore((s) => s.selectedDate)
   const setSelectedDate = useUiStore((s) => s.setSelectedDate)
 
-  const { setNodeRef, isOver } = useDroppable({ id: dayDropId(date) })
   const today = todayStr()
   const isToday = date === today
   const isSelected = date === selectedDate
   const dayNumber = Number(date.slice(8, 10))
 
-  const visible = occurrences.slice(0, MAX_VISIBLE)
-  const extra = occurrences.length - MAX_VISIBLE
+  const sessions = byDate.get(date) ?? []
+  const totalMin = Math.round(sessions.reduce((acc, s) => acc + s.durationSec, 0) / 60)
+  const visible = sessions.slice(0, MAX_VISIBLE)
+  const extra = sessions.length - MAX_VISIBLE
 
   return (
     <div
-      ref={setNodeRef}
-      className={`day-cell ${isDropTarget || isOver ? 'drop-target' : ''} ${isToday ? 'today' : ''} ${
-        isSelected ? 'selected' : ''
-      }`}
+      className={`day-cell ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}`}
       style={{ borderColor: 'var(--border)' }}
-      onClick={() => {
-        setSelectedDate(date)
-      }}
-      onDoubleClick={() => openCreate(date)}
+      onClick={() => setSelectedDate(date)}
+      title={totalMin > 0 ? `当日专注 ${totalMin} 分钟` : undefined}
     >
       <div className="flex items-center justify-between px-1.5 pt-1">
         <span className={`day-number ${isToday ? 'today-number' : ''}`}>{dayNumber}</span>
-        <button
-          className="add-btn"
-          title="新建任务"
-          onClick={(e) => {
-            e.stopPropagation()
-            openCreate(date)
-          }}
-        >
-          +
-        </button>
+        {totalMin > 0 && <span className="day-total">{totalMin} 分</span>}
       </div>
 
       <div className="mt-1 flex flex-col gap-1 overflow-hidden px-1">
-        {visible.map((occ) => (
-          <TaskCard key={`${occ.task.id}-${occ.date}`} occurrence={occ} variant="compact" />
+        {visible.map((s) => (
+          <SessionPill key={s.id} session={s} tasks={tasks} />
         ))}
         {extra > 0 && (
           <div className="px-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
-            +{extra} 项
+            +{extra} 条
           </div>
         )}
       </div>

@@ -242,6 +242,11 @@ export function TaskEditorModal() {
 
         <div className="mb-3">
           <RepeatRuleEditor value={repeat} onChange={setRepeat} />
+          {repeat && (
+            <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+              周期任务常驻待办清单（仅一行），计时后才记录当日进度，不会预生成未来日期的任务。
+            </div>
+          )}
         </div>
 
         <div className="mb-3">

@@ -73,6 +73,8 @@ export const IPC_MAIN = {
   openPanel: 'window:open-panel-request',
   /** 数据已变更（主窗口订阅后重载 task/habit/goal store） */
   dataChanged: 'data:changed',
+  /** 配置已变更（主窗口订阅后同步 configStore，保证桌宠开关等跨入口状态同源） */
+  configChanged: 'config:changed',
   /** 全局快捷键动作（主窗口订阅后分发到 newTask / openTimer / openSearch） */
   shortcut: 'app:shortcut',
 } as const
