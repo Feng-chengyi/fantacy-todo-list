@@ -77,6 +77,11 @@ const api: RendererApi = {
   timerLoadAssets: (): Promise<TimerAssets> => ipcRenderer.invoke(IPC.timerLoadAssets),
   commitFocusSession: (session: FocusSession): Promise<FocusCommitResult> =>
     ipcRenderer.invoke(IPC.focusCommit, session),
+  deleteFocusSession: (sessionId: string): Promise<FullData> =>
+    ipcRenderer.invoke(IPC.statsDeleteSession, sessionId),
+  clearFocusSessions: (from: string, to: string): Promise<FullData> =>
+    ipcRenderer.invoke(IPC.statsClearRange, { from, to }),
+  resetFocusStats: (): Promise<FullData> => ipcRenderer.invoke(IPC.statsResetAll),
   minimize: (): Promise<void> => ipcRenderer.invoke(IPC.windowMinimize),
   close: (): Promise<void> => ipcRenderer.invoke(IPC.windowClose),
   onOpenPanel: (cb: (panel: MainPanel) => void): (() => void) => {

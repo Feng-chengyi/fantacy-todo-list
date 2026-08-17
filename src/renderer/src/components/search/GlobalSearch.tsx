@@ -16,7 +16,7 @@ export function GlobalSearch() {
   const closeEditor = useUiStore((s) => s.closeEditor)
   const openEdit = useUiStore((s) => s.openEdit)
   const setSelectedDate = useUiStore((s) => s.setSelectedDate)
-  const setShowInbox = useUiStore((s) => s.setShowInbox)
+  const setPage = useUiStore((s) => s.setPage)
   const tasks = useTaskStore((s) => s.tasks)
 
   const [query, setQuery] = useState('')
@@ -49,9 +49,10 @@ export function GlobalSearch() {
     closeEditor()
     openEdit(task)
     if (task.date == null) {
-      setShowInbox(true)
+      setPage('inbox')
     } else {
-      setShowInbox(false)
+      // 有日期任务 → 时间轴页面定位到对应日期
+      setPage('timeline')
       setSelectedDate(task.date)
     }
     setShowSearch(false)

@@ -12,10 +12,8 @@ import { TopBar } from './components/layout/TopBar'
 import { Sidebar } from './components/layout/Sidebar'
 import { SettingsPanel } from './components/layout/SettingsPanel'
 import { PetMakerPanel } from './components/petmaker/PetMakerPanel'
-import { MonthCalendar } from './components/calendar/MonthCalendar'
-import { WeekView } from './components/calendar/WeekView'
-import { DayView } from './components/calendar/DayView'
-import { ListView } from './components/calendar/ListView'
+import { TodoPanel } from './components/todo/TodoPanel'
+import { TimelinePanel } from './components/timeline/TimelinePanel'
 import { InboxList } from './components/inbox/InboxList'
 import { TaskEditorModal } from './components/task/TaskEditorModal'
 import { TaskContextMenu } from './components/task/TaskContextMenu'
@@ -29,13 +27,8 @@ import * as ipc from './services/ipc'
 
 export default function App(): JSX.Element {
   const loadConfig = useConfigStore((s) => s.load)
-  const showInbox = useUiStore((s) => s.showInbox)
-  const showStats = useUiStore((s) => s.showStats)
-  const showHabits = useUiStore((s) => s.showHabits)
-  const showGoals = useUiStore((s) => s.showGoals)
-  const showTimer = useUiStore((s) => s.showTimer)
+  const page = useUiStore((s) => s.page)
   const showPetMaker = useUiStore((s) => s.showPetMaker)
-  const view = useUiStore((s) => s.view)
 
   // 一次 loadData 往返后由三个 store 分发共用，替代原先三路各自 loadData（QA O3）
   const refreshData = useCallback(async (): Promise<void> => {
@@ -58,30 +51,25 @@ export default function App(): JSX.Element {
     })
   }, [refreshData])
 
-  // 订阅主进程推送的「打开面板」请求（桌宠右键快捷入口）
+  // 订阅主进程推送的「打开面板」请求（桌宠右键快捷入口 / 任务提醒点击）
   useEffect(() => {
     return ipc.onOpenPanel((panel) => {
       const ui = useUiStore.getState()
-      ui.setShowInbox(false)
-      ui.setShowStats(false)
-      ui.setShowHabits(false)
-      ui.setShowGoals(false)
       ui.setShowSettings(false)
-      ui.setShowPetMaker(false)
-      ui.setShowTimer(false)
       switch (panel) {
         case 'today':
+          // 今日待办 → 待办首页（默认首页，聚焦未来任务规划）
           ui.goToday()
-          ui.setView('day')
+          ui.setPage('todo')
           break
         case 'stats':
-          ui.setShowStats(true)
+          ui.setPage('stats')
           break
         case 'habits':
-          ui.setShowHabits(true)
+          ui.setPage('habits')
           break
         case 'goals':
-          ui.setShowGoals(true)
+          ui.setPage('goals')
           break
         case 'pomodoro':
           ui.openTimerPanel('pomodoro')
@@ -90,7 +78,7 @@ export default function App(): JSX.Element {
           ui.setShowSettings(true)
           break
         case 'timer':
-          ui.setShowTimer(true)
+          ui.setPage('timer')
           break
       }
     })
@@ -106,25 +94,22 @@ export default function App(): JSX.Element {
     })
   }, [])
 
-  const mainView = showInbox ? (
-    <InboxList />
-  ) : showStats ? (
-    <StatsPanel />
-  ) : showHabits ? (
-    <HabitPanel />
-  ) : showGoals ? (
-    <CountdownPanel />
-  ) : showTimer ? (
-    <TimerPanel />
-  ) : view === 'week' ? (
-    <WeekView />
-  ) : view === 'day' ? (
-    <DayView />
-  ) : view === 'list' ? (
-    <ListView />
-  ) : (
-    <MonthCalendar />
-  )
+  const mainView =
+    page === 'inbox' ? (
+      <InboxList />
+    ) : page === 'timeline' ? (
+      <TimelinePanel />
+    ) : page === 'stats' ? (
+      <StatsPanel />
+    ) : page === 'habits' ? (
+      <HabitPanel />
+    ) : page === 'goals' ? (
+      <CountdownPanel />
+    ) : page === 'timer' ? (
+      <TimerPanel />
+    ) : (
+      <TodoPanel />
+    )
 
   return (
     <div className="flex h-full flex-col overflow-hidden">

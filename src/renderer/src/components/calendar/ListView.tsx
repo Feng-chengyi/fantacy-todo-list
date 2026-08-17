@@ -18,7 +18,8 @@ import { useUiStore } from '../../stores/uiStore'
 import { commitFocus, switchTimer } from '../../services/focus'
 import { Stopwatch } from '../task/Stopwatch'
 
-function ListRow({ occurrence }: { occurrence: Occurrence }) {
+/** 单条任务行（列表视图 / 待办首页共用） */
+export function ListRow({ occurrence }: { occurrence: Occurrence }) {
   const { task, date, status } = occurrence
   const setStatus = useTaskStore((s) => s.setStatus)
   const setOverride = useTaskStore((s) => s.setOverride)

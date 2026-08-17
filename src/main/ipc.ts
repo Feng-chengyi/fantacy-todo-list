@@ -6,7 +6,7 @@ import { ipcMain } from 'electron'
 import { randomUUID } from 'crypto'
 import { store } from './store'
 import { IPC } from '../shared/ipc-channels'
-import { applyFocusCommit } from '../shared/focus'
+import { applyFocusClearRange, applyFocusCommit, applyFocusDelete, applyFocusReset } from '../shared/focus'
 import { applyTaskStatus, shiftRepeatOnMove } from '../shared/taskOps'
 import { normalizeHabit } from '../shared/habit'
 import type {
@@ -44,6 +44,29 @@ export function registerDataIpc(): void {
     const data = applyFocusCommit(store.getData(), session)
     store.setData(data)
     return { task: data.tasks.find((t) => t.id === session.taskId) ?? null }
+  })
+
+  // 统计数据清除三件套（单条 / 指定周期 / 全部重置）：
+  // 纯函数一次 setData 落盘，返回最新全量数据供渲染进程各 store 同步刷新
+  ipcMain.handle(IPC.statsDeleteSession, (_event, sessionId: string): FullData => {
+    const data = applyFocusDelete(store.getData(), sessionId)
+    store.setData(data)
+    return data
+  })
+
+  ipcMain.handle(
+    IPC.statsClearRange,
+    (_event, payload: { from: string; to: string }): FullData => {
+      const data = applyFocusClearRange(store.getData(), payload.from, payload.to)
+      store.setData(data)
+      return data
+    },
+  )
+
+  ipcMain.handle(IPC.statsResetAll, (): FullData => {
+    const data = applyFocusReset(store.getData())
+    store.setData(data)
+    return data
   })
 
   ipcMain.handle(IPC.taskCreate, (_event, input: CreateTaskInput): Task => {

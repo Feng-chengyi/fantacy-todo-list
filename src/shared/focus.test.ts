@@ -4,10 +4,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { FullData, FocusSession, Task, TimerState } from './types'
 import {
+  applyFocusClearRange,
   applyFocusCommit,
+  applyFocusDelete,
+  applyFocusReset,
   buildPomodoroSession,
   isSameTimerInstance,
   selectTimerCandidates,
+  sessionLocalDate,
   shouldAutoplayBgm,
   shouldRecordFocus,
   timerElapsedMs,
@@ -85,6 +89,142 @@ describe('applyFocusCommit 原子提交（O1：session 追加 + durationSec 累�
     const data = fullData([task({ id: 't1' })])
     const next = applyFocusCommit(data, session({ id: 's1', taskId: 't1', durationSec: 300 }))
     expect(next.tasks[0].durationSec).toBe(300)
+  })
+})
+
+describe('统计数据清除：sessionLocalDate 本地日期口径', () => {
+  it('ISO 时刻 → 本地 YYYY-MM-DD', () => {
+    // 本地构造，不依赖运行时区
+    expect(sessionLocalDate(new Date(2025, 7, 15, 23, 30).toISOString())).toBe('2025-08-15')
+    expect(sessionLocalDate(new Date(2025, 0, 1, 0, 5).toISOString())).toBe('2025-01-01')
+  })
+})
+
+describe('applyFocusDelete 删除单条专注记录', () => {
+  it('删除指定会话并扣减绑定任务 durationSec', () => {
+    const data = fullData([task({ id: 't1', durationSec: 400 })], [
+      session({ id: 's0', taskId: 't1', durationSec: 100 }),
+      session({ id: 's1', taskId: 't1', durationSec: 300 }),
+    ])
+    const next = applyFocusDelete(data, 's1')
+    expect(next.sessions.map((s) => s.id)).toEqual(['s0'])
+    expect(next.tasks[0].durationSec).toBe(100)
+  })
+
+  it('自由计时会话：仅删除会话，不动任务', () => {
+    const data = fullData([task({ id: 't1', durationSec: 100 })], [
+      session({ id: 's1', taskId: '', durationSec: 300 }),
+    ])
+    const next = applyFocusDelete(data, 's1')
+    expect(next.sessions).toHaveLength(0)
+    expect(next.tasks[0].durationSec).toBe(100)
+  })
+
+  it('绑定的任务已被删除：仅删会话不抛错', () => {
+    const data = fullData([], [session({ id: 's1', taskId: 'ghost', durationSec: 300 })])
+    const next = applyFocusDelete(data, 's1')
+    expect(next.sessions).toHaveLength(0)
+  })
+
+  it('扣减下限为 0（durationSec 不出现负数）', () => {
+    const data = fullData([task({ id: 't1', durationSec: 100 })], [
+      session({ id: 's1', taskId: 't1', durationSec: 300 }),
+    ])
+    const next = applyFocusDelete(data, 's1')
+    expect(next.tasks[0].durationSec).toBe(0)
+  })
+
+  it('记录不存在：原样返回（引用相等）', () => {
+    const data = fullData([task({ id: 't1' })], [session({ id: 's1' })])
+    expect(applyFocusDelete(data, 'missing')).toBe(data)
+  })
+
+  it('不可变：不修改入参 data', () => {
+    const data = fullData([task({ id: 't1', durationSec: 400 })], [
+      session({ id: 's1', taskId: 't1', durationSec: 300 }),
+    ])
+    applyFocusDelete(data, 's1')
+    expect(data.tasks[0].durationSec).toBe(400)
+    expect(data.sessions).toHaveLength(1)
+  })
+})
+
+describe('applyFocusClearRange 清空指定周期数据', () => {
+  // 本地时刻构造（不依赖运行时区）：8/14 两条、8/15 两条、8/16 一条
+  const sessions = [
+    session({ id: 'a1', taskId: 't1', startedAt: new Date(2025, 7, 14, 10, 0).toISOString(), durationSec: 600 }),
+    session({ id: 'a2', taskId: 't2', startedAt: new Date(2025, 7, 14, 11, 0).toISOString(), durationSec: 300 }),
+    session({ id: 'b1', taskId: 't1', startedAt: new Date(2025, 7, 15, 9, 0).toISOString(), durationSec: 1200 }),
+    session({ id: 'b2', taskId: '', startedAt: new Date(2025, 7, 15, 22, 0).toISOString(), durationSec: 180 }),
+    session({ id: 'c1', taskId: 't2', startedAt: new Date(2025, 7, 16, 9, 0).toISOString(), durationSec: 60 }),
+  ]
+  const tasks = [task({ id: 't1', durationSec: 1800 }), task({ id: 't2', durationSec: 360 })]
+
+  it('按本地日期闭区间清除：区间内会话移除、区间外保留', () => {
+    const next = applyFocusClearRange(fullData(tasks, sessions), '2025-08-15', '2025-08-15')
+    expect(next.sessions.map((s) => s.id)).toEqual(['a1', 'a2', 'c1'])
+  })
+
+  it('多任务 durationSec 按被删会话分别扣减', () => {
+    const next = applyFocusClearRange(fullData(tasks, sessions), '2025-08-14', '2025-08-15')
+    // t1 删 a1(600) + b1(1200) → 1800-1800 = 0；t2 删 a2(300) → 360-300 = 60
+    const t1 = next.tasks.find((t) => t.id === 't1')
+    const t2 = next.tasks.find((t) => t.id === 't2')
+    expect(t1?.durationSec).toBe(0)
+    expect(t2?.durationSec).toBe(60)
+  })
+
+  it('区间边界（from=to）与跨月区间均生效', () => {
+    const next = applyFocusClearRange(fullData(tasks, sessions), '2025-08-14', '2025-08-16')
+    expect(next.sessions).toHaveLength(0)
+  })
+
+  it('区间内无匹配：原样返回（引用相等）', () => {
+    const data = fullData(tasks, sessions)
+    expect(applyFocusClearRange(data, '2030-01-01', '2030-12-31')).toBe(data)
+  })
+
+  it('非法区间（from > to / 空串）：原样返回', () => {
+    const data = fullData(tasks, sessions)
+    expect(applyFocusClearRange(data, '2025-08-16', '2025-08-14')).toBe(data)
+    expect(applyFocusClearRange(data, '', '2025-08-14')).toBe(data)
+  })
+})
+
+describe('applyFocusReset 一键重置全部统计数据', () => {
+  it('清空全部会话，所有任务 durationSec 归零', () => {
+    const data = fullData(
+      [task({ id: 't1', durationSec: 1800 }), task({ id: 't2' })],
+      [
+        session({ id: 's1', taskId: 't1', durationSec: 1800 }),
+        session({ id: 's2', taskId: '', durationSec: 60 }),
+      ],
+    )
+    const next = applyFocusReset(data)
+    expect(next.sessions).toHaveLength(0)
+    expect(next.tasks.every((t) => t.durationSec === 0)).toBe(true)
+  })
+
+  it('保留 tasks 之外的其余字段（goals / habits 等不受影响）', () => {
+    const data = fullData([task({ id: 't1', durationSec: 60 })], [session({ id: 's1' })])
+    data.goals.push({
+      id: 'g1',
+      title: '目标',
+      targetDate: '2025-12-31',
+      createdAt: '2025-08-01T00:00:00.000Z',
+      category: '',
+      color: '',
+    })
+    const next = applyFocusReset(data)
+    expect(next.goals).toHaveLength(1)
+    expect(next.overrides).toBe(data.overrides)
+  })
+
+  it('不可变：不修改入参 data', () => {
+    const data = fullData([task({ id: 't1', durationSec: 100 })], [session({ id: 's1' })])
+    applyFocusReset(data)
+    expect(data.tasks[0].durationSec).toBe(100)
+    expect(data.sessions).toHaveLength(1)
   })
 })
 

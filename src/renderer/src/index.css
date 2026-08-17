@@ -961,6 +961,158 @@ textarea.input {
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
+.dash-detail-del {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: none;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+.dash-detail-del:hover:not(:disabled) {
+  color: var(--priority-high);
+  background: rgba(255, 0, 0, 0.08);
+}
+.dash-detail-del:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 统计页头部数据管理菜单 */
+.stats-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.stats-more-wrap {
+  position: relative;
+}
+.stats-more-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 30;
+  min-width: 176px;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stats-more-item {
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.stats-more-item:hover {
+  background: rgba(128, 128, 128, 0.12);
+}
+.stats-more-item.danger {
+  color: var(--priority-high);
+}
+
+/* 数据清除确认弹窗（通用） */
+.confirm-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.38);
+}
+.confirm-panel {
+  width: 360px;
+  max-width: calc(100vw - 48px);
+  padding: 18px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
+}
+.confirm-title {
+  margin-bottom: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.confirm-detail {
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--text);
+  word-break: break-all;
+}
+.confirm-warning {
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: var(--priority-high);
+}
+.confirm-hint {
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.confirm-error {
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--priority-high);
+}
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.confirm-actions .danger-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.confirm-mode-tabs {
+  margin-bottom: 12px;
+}
+.confirm-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.confirm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.confirm-field input {
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+.confirm-range-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.confirm-range-row input {
+  flex: 1;
+  min-width: 0;
+}
 
 /* ============ 日视图 ============ */
 .day-view {
@@ -1015,6 +1167,9 @@ textarea.input {
 }
 .list-group-head.today .list-group-label {
   color: var(--accent);
+}
+.list-group-head.overdue .list-group-label {
+  color: var(--priority-high);
 }
 .list-group-head .list-group-count {
   font-size: 12px;

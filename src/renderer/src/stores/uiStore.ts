@@ -14,6 +14,9 @@ export type { TimerState }
 export type TaskFilter = 'all' | 'pending' | 'done' | 'abandoned'
 export type CalendarView = 'month' | 'week' | 'day' | 'list'
 
+/** 左侧一级导航页面（待办为默认首页；日历/时间线复盘归入时间轴页） */
+export type Page = 'todo' | 'inbox' | 'timeline' | 'stats' | 'habits' | 'goals' | 'timer'
+
 export interface EditorState {
   /** null = 新建；否则为编辑已有任务 */
   task: Task | null
@@ -35,16 +38,13 @@ interface UiState {
   currentMonth: number // 0-based
   selectedDate: string | null
   view: CalendarView
+  /** 当前一级导航页面（默认待办首页） */
+  page: Page
   editor: EditorState | null
   filter: TaskFilter
   showSettings: boolean
   /** 制作桌宠向导弹层（从设置面板调起） */
   showPetMaker: boolean
-  showInbox: boolean
-  showStats: boolean
-  showHabits: boolean
-  showGoals: boolean
-  showTimer: boolean
   /** 全局搜索弹层（T05） */
   showSearch: boolean
   /** 使用说明面板（T05） */
@@ -70,11 +70,8 @@ interface UiState {
   setFilter: (f: TaskFilter) => void
   setShowSettings: (v: boolean) => void
   setShowPetMaker: (v: boolean) => void
-  setShowInbox: (v: boolean) => void
-  setShowStats: (v: boolean) => void
-  setShowHabits: (v: boolean) => void
-  setShowGoals: (v: boolean) => void
-  setShowTimer: (v: boolean) => void
+  /** 切换一级导航页面 */
+  setPage: (p: Page) => void
   setShowSearch: (v: boolean) => void
   setShowHelp: (v: boolean) => void
   setTimerMode: (mode: TimerMode) => void
@@ -95,15 +92,11 @@ export const useUiStore = create<UiState>((set) => ({
   currentMonth: initial.month,
   selectedDate: todayStr(),
   view: 'month',
+  page: 'todo',
   editor: null,
   filter: 'all',
   showSettings: false,
   showPetMaker: false,
-  showInbox: false,
-  showStats: false,
-  showHabits: false,
-  showGoals: false,
-  showTimer: false,
   showSearch: false,
   showHelp: false,
   timerMode: 'stopwatch',
@@ -153,15 +146,7 @@ export const useUiStore = create<UiState>((set) => ({
 
   setShowPetMaker: (v) => set({ showPetMaker: v }),
 
-  setShowInbox: (v) => set({ showInbox: v }),
-
-  setShowStats: (v) => set({ showStats: v }),
-
-  setShowHabits: (v) => set({ showHabits: v }),
-
-  setShowGoals: (v) => set({ showGoals: v }),
-
-  setShowTimer: (v) => set({ showTimer: v }),
+  setPage: (p) => set({ page: p }),
 
   setShowSearch: (v) => set({ showSearch: v }),
 
@@ -171,11 +156,7 @@ export const useUiStore = create<UiState>((set) => ({
 
   openTimerPanel: (mode) =>
     set({
-      showInbox: false,
-      showStats: false,
-      showHabits: false,
-      showGoals: false,
-      showTimer: true,
+      page: 'timer',
       ...(mode ? { timerMode: mode } : {}),
     }),
 

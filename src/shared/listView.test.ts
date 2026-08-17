@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { RepeatOverride, Task } from './types'
-import { buildListGroups, listDateLabel } from './listView'
+import { buildListGroups, buildTodoGroups, listDateLabel } from './listView'
 
 const TODAY = '2026-08-16'
 
@@ -133,5 +133,80 @@ describe('buildListGroups 组内排序', () => {
     ]
     const groups = buildListGroups(tasks, [], 'all', TODAY)
     expect(groups[0].occurrences.map((o) => o.task.id)).toEqual(['t0900', 't1400', 'high', 'low'])
+  })
+})
+
+describe('buildTodoGroups 待办首页分组', () => {
+  it('不含收集箱；今日 + 未来升序；今日组标记 isToday', () => {
+    const tasks = [
+      task({ id: 'inbox1', date: null }),
+      task({ id: 'future', date: '2026-08-20' }),
+      task({ id: 'today', date: TODAY }),
+    ]
+    const groups = buildTodoGroups(tasks, [], 'all', TODAY)
+    expect(groups.map((g) => g.key)).toEqual(['2026-08-16', '2026-08-20'])
+    expect(groups[0].isToday).toBe(true)
+  })
+
+  it('逾期未完成任务归入置顶「已逾期」组', () => {
+    const tasks = [
+      task({ id: 'overdue', date: '2026-08-10', status: 'pending' }),
+      task({ id: 'today', date: TODAY }),
+    ]
+    const groups = buildTodoGroups(tasks, [], 'all', TODAY)
+    expect(groups.map((g) => g.key)).toEqual(['overdue', TODAY])
+    expect(groups[0].label).toBe('已逾期')
+    expect(groups[0].occurrences.map((o) => o.task.id)).toEqual(['overdue'])
+  })
+
+  it('逾期但已完成 / 已放弃的任务不进入已逾期组（历史归时间轴）', () => {
+    const tasks = [
+      task({ id: 'doneOld', date: '2026-08-10', status: 'done' }),
+      task({ id: 'abandonOld', date: '2026-08-11', status: 'abandoned' }),
+    ]
+    expect(buildTodoGroups(tasks, [], 'all', TODAY)).toHaveLength(0)
+  })
+
+  it('重复任务自今日起展开（历史实例不进入待办首页）', () => {
+    // anchor 在今日之前：8/14 起每日重复，待办首页只展开 8/16 起
+    const tasks = [
+      task({ id: 'r1', date: '2026-08-14', repeat: { type: 'daily', interval: 1 } }),
+    ]
+    const groups = buildTodoGroups(tasks, [], 'all', TODAY, 2)
+    expect(groups.map((g) => g.key)).toEqual(['2026-08-16', '2026-08-17', '2026-08-18'])
+  })
+
+  it('重复任务 anchor 在未来：不早于 anchor 展开', () => {
+    const tasks = [
+      task({ id: 'r1', date: '2026-08-18', repeat: { type: 'daily', interval: 1 } }),
+    ]
+    const groups = buildTodoGroups(tasks, [], 'all', TODAY, 5)
+    expect(groups.map((g) => g.key)).toEqual(['2026-08-18', '2026-08-19', '2026-08-20', '2026-08-21'])
+  })
+
+  it('skipped 实例隐藏；筛选联动 pending 仅留未完成', () => {
+    const tasks = [
+      task({ id: 'r1', date: '2026-08-14', repeat: { type: 'daily', interval: 1 } }),
+    ]
+    const overrides: RepeatOverride[] = [
+      { id: 'o1', taskId: 'r1', occurrenceDate: TODAY, action: 'skipped' },
+      { id: 'o2', taskId: 'r1', occurrenceDate: '2026-08-17', action: 'done' },
+    ]
+    const all = buildTodoGroups(tasks, overrides, 'all', TODAY, 2)
+    // 8/16 skipped 隐藏；8/17 done 覆盖在 all 筛选下保留
+    expect(all.map((g) => g.key)).toEqual(['2026-08-17', '2026-08-18'])
+    const pending = buildTodoGroups(tasks, overrides, 'pending', TODAY, 5)
+    expect(pending.map((g) => g.key)).toEqual(['2026-08-18', '2026-08-19', '2026-08-20', '2026-08-21'])
+  })
+
+  it('done 筛选：仅保留今日及未来的已完成实例', () => {
+    const tasks = [
+      task({ id: 'oldDone', date: '2026-08-10', status: 'done' }),
+      task({ id: 'todayDone', date: TODAY, status: 'done' }),
+      task({ id: 'todayPending', date: TODAY }),
+    ]
+    const groups = buildTodoGroups(tasks, [], 'done', TODAY)
+    expect(groups).toHaveLength(1)
+    expect(groups[0].occurrences.map((o) => o.task.id)).toEqual(['todayDone'])
   })
 })

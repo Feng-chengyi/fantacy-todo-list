@@ -190,6 +190,21 @@ export function commitFocusSession(session: FocusSession): Promise<FocusCommitRe
   return window.api.commitFocusSession(session)
 }
 
+/** 删除单条专注会话（统计页单条删除），返回最新全量数据 */
+export function deleteFocusSession(sessionId: string): Promise<FullData> {
+  return window.api.deleteFocusSession(sessionId)
+}
+
+/** 清空指定日期区间（闭区间）内全部专注会话，返回最新全量数据 */
+export function clearFocusSessions(from: string, to: string): Promise<FullData> {
+  return window.api.clearFocusSessions(from, to)
+}
+
+/** 重置全部专注统计，返回最新全量数据 */
+export function resetFocusStats(): Promise<FullData> {
+  return window.api.resetFocusStats()
+}
+
 export function minimize(): Promise<void> {
   return window.api.minimize()
 }

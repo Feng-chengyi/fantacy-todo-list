@@ -24,6 +24,12 @@ export const IPC = {
   habitSetArchived: 'habit:setArchived',
   /** 原子提交一次专注会话（session 追加 + 任务 durationSec 累加，单次落盘） */
   focusCommit: 'focus:commit',
+  /** 删除单条专注会话（连带扣减绑定任务 durationSec） */
+  statsDeleteSession: 'stats:delete-session',
+  /** 清空指定日期区间（闭区间，本地日期口径）内全部专注会话 */
+  statsClearRange: 'stats:clear-range',
+  /** 重置全部专注统计（清空会话，任务 durationSec 归零） */
+  statsResetAll: 'stats:reset-all',
   configGet: 'config:get',
   configSet: 'config:set',
   dataExport: 'data:export',

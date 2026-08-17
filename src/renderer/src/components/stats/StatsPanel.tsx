@@ -4,7 +4,7 @@
  * 图表全部自绘 SVG（DonutChart / HourBarChart / TrendAreaChart），深浅色主题经 CSS 变量适配。
  * 数据基于 tasks + overrides + sessions + habits（Zustand store），随 store 实时更新。
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Priority } from '../../../../shared/types'
 import { ALL_PRIORITIES, PRIORITY_LABELS } from '../../../../shared/defaults'
 import {
@@ -29,12 +29,18 @@ import {
   weekDates,
 } from '../../../../shared/date'
 import { formatDurationCompact } from '../../../../shared/time'
+import { sessionLocalDate } from '../../../../shared/focus'
 import { useConfigStore } from '../../stores/configStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { useHabitStore } from '../../stores/habitStore'
 import { DonutChart } from './DonutChart'
 import { HourBarChart } from './HourBarChart'
 import { TrendAreaChart } from './TrendAreaChart'
+import { ConfirmDialog } from './ConfirmDialog'
+import { ClearRangeDialog } from './ClearRangeDialog'
+
+/** 待二次确认的清除操作（单条 / 全部重置；周期清除走 ClearRangeDialog） */
+type PendingClear = { kind: 'session'; id: string; label: string } | { kind: 'reset' }
 
 function pct(done: number, total: number): number {
   return total > 0 ? Math.round((done / total) * 100) : 0
@@ -134,21 +140,56 @@ function timeOf(iso: string): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-/** ISO 时刻 → 本地 YYYY-MM-DD（与 stats.sessionDate 同口径，避免 UTC 日期错归） */
-function localDateOf(iso: string): string {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
 export function StatsPanel() {
   const tasks = useTaskStore((s) => s.tasks)
   const overrides = useTaskStore((s) => s.overrides)
   const sessions = useTaskStore((s) => s.sessions)
   const weekStart = useConfigStore((s) => s.weekStart)
   const habits = useHabitStore((s) => s.habits)
+  const deleteFocusSession = useTaskStore((s) => s.deleteFocusSession)
+  const clearFocusSessions = useTaskStore((s) => s.clearFocusSessions)
+  const resetFocusStats = useTaskStore((s) => s.resetFocusStats)
 
   const today = todayStr()
+
+  /* ---- 数据清除（数据管理菜单 + 二次确认；删除后图表随 store 实时刷新） ---- */
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [clearRangeOpen, setClearRangeOpen] = useState(false)
+  const [pendingClear, setPendingClear] = useState<PendingClear | null>(null)
+  const [clearBusy, setClearBusy] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  // 点击菜单外部关闭「数据管理」下拉
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDown = (e: MouseEvent): void => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [menuOpen])
+
+  const executeClear = async (): Promise<void> => {
+    if (!pendingClear) return
+    setClearBusy(true)
+    try {
+      if (pendingClear.kind === 'session') await deleteFocusSession(pendingClear.id)
+      else await resetFocusStats()
+      setPendingClear(null)
+    } finally {
+      setClearBusy(false)
+    }
+  }
+
+  const executeClearRange = async (from: string, to: string): Promise<void> => {
+    setClearBusy(true)
+    try {
+      await clearFocusSessions(from, to)
+      setClearRangeOpen(false)
+    } finally {
+      setClearBusy(false)
+    }
+  }
 
   /* ---- 模块 1：累计专注汇总（自定义起始时间范围，空 = 全部历史） ---- */
   const [focusFrom, setFocusFrom] = useState('')
@@ -195,13 +236,13 @@ export function StatsPanel() {
     if (!distRange || !showDetail) return []
     return sessions
       .filter((s) => {
-        const dateStr = localDateOf(s.startedAt)
+        const dateStr = sessionLocalDate(s.startedAt)
         return dateStr >= distRange.from && dateStr <= distRange.to
       })
       .sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1))
       .map((s) => ({
         id: s.id,
-        date: localDateOf(s.startedAt),
+        date: sessionLocalDate(s.startedAt),
         time: timeOf(s.startedAt),
         title: s.taskId ? (titleById.get(s.taskId) ?? '已删除任务') : FREE_FOCUS_LABEL,
         seconds: s.durationSec,
@@ -258,7 +299,36 @@ export function StatsPanel() {
 
   return (
     <div className="stats-panel">
-      <h2 className="mb-4 text-base font-bold">统计看板</h2>
+      <div className="stats-head-row">
+        <h2 className="text-base font-bold">统计看板</h2>
+        <div className="stats-more-wrap" ref={menuRef}>
+          <button className="text-btn" onClick={() => setMenuOpen((v) => !v)} title="统计数据管理">
+            ⋯ 数据管理
+          </button>
+          {menuOpen && (
+            <div className="stats-more-menu">
+              <button
+                className="stats-more-item"
+                onClick={() => {
+                  setMenuOpen(false)
+                  setClearRangeOpen(true)
+                }}
+              >
+                清空指定周期数据…
+              </button>
+              <button
+                className="stats-more-item danger"
+                onClick={() => {
+                  setMenuOpen(false)
+                  setPendingClear({ kind: 'reset' })
+                }}
+              >
+                重置全部统计数据…
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
 
       <p className="dash-section-title">专注数据分析</p>
 
@@ -394,6 +464,20 @@ export function StatsPanel() {
                         {r.title}
                       </span>
                       <span className="dash-detail-duration">{formatDurationCompact(r.seconds)}</span>
+                      <button
+                        className="dash-detail-del"
+                        title="删除该记录"
+                        disabled={clearBusy}
+                        onClick={() =>
+                          setPendingClear({
+                            kind: 'session',
+                            id: r.id,
+                            label: `${r.date} ${r.time} · ${r.title}（${formatDurationCompact(r.seconds)}）`,
+                          })
+                        }
+                      >
+                        ✕
+                      </button>
                     </div>
                   ))
                 )}
@@ -529,6 +613,30 @@ export function StatsPanel() {
           ))
         )}
       </section>
+
+      {/* 数据清除弹层：周期清除（两步）+ 单条/全部重置（二次确认） */}
+      {clearRangeOpen && (
+        <ClearRangeDialog busy={clearBusy} onConfirm={executeClearRange} onCancel={() => setClearRangeOpen(false)} />
+      )}
+      {pendingClear?.kind === 'session' && (
+        <ConfirmDialog
+          title="删除该专注记录"
+          detail={pendingClear.label}
+          busy={clearBusy}
+          onConfirm={() => void executeClear()}
+          onCancel={() => setPendingClear(null)}
+        />
+      )}
+      {pendingClear?.kind === 'reset' && (
+        <ConfirmDialog
+          title="重置全部统计数据"
+          detail="将清空所有历史专注记录，累计时长、日均时长与全部图表归零。"
+          confirmLabel="全部重置"
+          busy={clearBusy}
+          onConfirm={() => void executeClear()}
+          onCancel={() => setPendingClear(null)}
+        />
+      )}
     </div>
   )
 }

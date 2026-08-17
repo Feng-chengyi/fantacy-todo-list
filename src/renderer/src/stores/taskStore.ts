@@ -32,6 +32,12 @@ interface TaskState {
   clearOverride: (taskId: string, occurrenceDate: string) => Promise<void>
   /** 应用一次专注原子提交的本地回放（main 已落盘，返回更新后的任务） */
   applyCommit: (task: Task | null, session: FocusSession) => void
+  /** 删除单条专注会话（main 返回最新全量数据，本地整体回放） */
+  deleteFocusSession: (sessionId: string) => Promise<void>
+  /** 清空指定日期区间内全部专注会话 */
+  clearFocusSessions: (from: string, to: string) => Promise<void>
+  /** 重置全部专注统计 */
+  resetFocusStats: () => Promise<void>
 }
 
 export const useTaskStore = create<TaskState>((set) => ({
@@ -125,4 +131,19 @@ export const useTaskStore = create<TaskState>((set) => ({
       tasks: task ? s.tasks.map((t) => (t.id === task.id ? task : t)) : s.tasks,
       sessions: [...s.sessions, session],
     })),
+
+  deleteFocusSession: async (sessionId) => {
+    const data = await api.deleteFocusSession(sessionId)
+    set({ tasks: data.tasks, sessions: data.sessions ?? [] })
+  },
+
+  clearFocusSessions: async (from, to) => {
+    const data = await api.clearFocusSessions(from, to)
+    set({ tasks: data.tasks, sessions: data.sessions ?? [] })
+  },
+
+  resetFocusStats: async () => {
+    const data = await api.resetFocusStats()
+    set({ tasks: data.tasks, sessions: data.sessions ?? [] })
+  },
 }))

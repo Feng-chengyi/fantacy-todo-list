@@ -405,6 +405,12 @@ export interface RendererApi {
   timerLoadAssets(): Promise<TimerAssets>
   /** 原子提交一次专注会话（追加 session + 累加绑定任务 durationSec，单次落盘） */
   commitFocusSession(session: FocusSession): Promise<FocusCommitResult>
+  /** 删除单条专注会话（连带扣减绑定任务 durationSec），返回最新全量数据 */
+  deleteFocusSession(sessionId: string): Promise<FullData>
+  /** 清空 [from, to] 闭区间（本地日期口径）内全部专注会话，返回最新全量数据 */
+  clearFocusSessions(from: string, to: string): Promise<FullData>
+  /** 重置全部专注统计（清空会话，任务 durationSec 归零），返回最新全量数据 */
+  resetFocusStats(): Promise<FullData>
   /** 通知桌宠播放联动动画（timing / finishing / jumping） */
   notifyPetAnim(notice: PetAnimNotice): Promise<void>
   /** 宠物包：列出已安装自定义宠物（含 spritesheet data URL） */

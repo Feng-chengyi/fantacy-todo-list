@@ -26,7 +26,7 @@ export function TimerPanel() {
   const setTimerMode = useUiStore((s) => s.setTimerMode)
   const pauseTimer = useUiStore((s) => s.pauseTimer)
   const resumeTimer = useUiStore((s) => s.resumeTimer)
-  const setShowTimer = useUiStore((s) => s.setShowTimer)
+  const setPage = useUiStore((s) => s.setPage)
   const tasks = useTaskStore((s) => s.tasks)
 
   // 番茄钟 store
@@ -219,8 +219,8 @@ export function TimerPanel() {
       <div className="timer-panel-content">
         <div className="timer-panel-head">
           <h2>{timerMode === 'pomodoro' ? '番茄钟' : '正向计时器'}</h2>
-          <button className="text-btn" onClick={() => setShowTimer(false)}>
-            返回日历
+          <button className="text-btn" onClick={() => setPage('todo')}>
+            返回待办
           </button>
         </div>
 
